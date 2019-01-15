@@ -7,17 +7,13 @@ from __future__ import division
 from __future__ import print_function
 
 import torch.utils.data as data
-from PIL import Image
 import torch
 
-from model.utils.config import cfg
-from roi_data_layer.minibatch import get_minibatch, get_minibatch
-from model.rpn.bbox_transform import bbox_transform_inv, clip_boxes
+from lib.model.utils.config import cfg
+from lib.roi_data_layer.minibatch import get_minibatch
 
 import numpy as np
-import random
-import time
-import pdb
+
 
 class roibatchLoader(data.Dataset):
   def __init__(self, roidb, ratio_list, ratio_index, batch_size, num_classes, training=True, normalize=None):

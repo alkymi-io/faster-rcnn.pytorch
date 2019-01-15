@@ -6,16 +6,13 @@ from __future__ import print_function
 # Written by Ross Girshick
 # --------------------------------------------------------
 
-import datasets
-import datasets.imagenet
-import os, sys
-from datasets.imdb import imdb
+import os
+from lib.datasets.imdb import imdb
 import xml.dom.minidom as minidom
 import numpy as np
 import scipy.sparse
 import scipy.io as sio
-import subprocess
-import pdb
+
 import pickle
 try:
     xrange          # Python 2

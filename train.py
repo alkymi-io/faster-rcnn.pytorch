@@ -17,12 +17,12 @@ import torch
 from torch.autograd import Variable
 from torch.utils.data.sampler import Sampler
 
-from lib.datasets.factory import DBFactory
 from lib.model.faster_rcnn.resnet import resnet
 from lib.model.utils.net_utils import clip_gradient, adjust_learning_rate
 from lib.roi_data_layer.roidb import combined_roidb
 from lib.roi_data_layer.roibatchLoader import roibatchLoader
 
+from lib.model.utils.config import cfg
 
 class sampler(Sampler):
     def __init__(self, train_size, batch_size):
@@ -81,15 +81,13 @@ def train():
     lr_decay_gamma = float(trainingParams.get('lr_decay_gamma', 0.1))
     early_stopping_patience = float(trainingParams.get('patience', 4))
 
-    factory = DBFactory(args.data_path)
-
-    imdb_train, roidb_train, ratio_list_train, ratio_index_train = combined_roidb(imdb_name + '_train', factory)
+    imdb_train, roidb_train, ratio_list_train, ratio_index_train = combined_roidb(imdb_name + '_train')
     train_size = len(roidb_train)
     sampler_batch_train = sampler(train_size, batch_size)
     dataset_train = roibatchLoader(roidb_train, ratio_list_train, ratio_index_train, batch_size, imdb_train.num_classes, training=True)
     dataloader_train = torch.utils.data.DataLoader(dataset_train, batch_size=batch_size, sampler=sampler_batch_train, num_workers=num_workers)
 
-    imdb_val, roidb_val, ratio_list_val, ratio_index_val = combined_roidb(imdb_name + '_validation', factory)
+    imdb_val, roidb_val, ratio_list_val, ratio_index_val = combined_roidb(imdb_name + '_validation', training=False)
     val_size = len(roidb_val)
     sampler_batch_val = sampler(val_size, batch_size)
     dataset_val = roibatchLoader(roidb_val, ratio_list_val, ratio_index_val, batch_size, imdb_val.num_classes)
@@ -273,6 +271,8 @@ if __name__ == '__main__':
     parser.add_argument('--cfg', help='Optional config file', type=str)
 
     args = parser.parse_args()
+
+    cfg.TRAIN.USE_FLIPPED = False
     train()
 
     # A zero exit code causes the job to be marked a Succeeded.
