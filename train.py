@@ -10,7 +10,6 @@ from argparse import ArgumentParser
 from shutil import copy
 import traceback
 from tqdm import tqdm
-
 import numpy as np
 
 import torch
@@ -19,10 +18,10 @@ from torch.utils.data.sampler import Sampler
 
 from lib.model.faster_rcnn.resnet import resnet
 from lib.model.utils.net_utils import clip_gradient, adjust_learning_rate
+from lib.model.utils.config import cfg
 from lib.roi_data_layer.roidb import combined_roidb
 from lib.roi_data_layer.roibatchLoader import roibatchLoader
 
-from lib.model.utils.config import cfg
 
 class sampler(Sampler):
     def __init__(self, train_size, batch_size):
@@ -175,7 +174,6 @@ def train():
         print("\t\t\ttrain time cost: %f" % (train_end_time - train_start_time))
         print("\t\t\ttrain rpn_cls: %.4f, train rpn_box: %.4f, train rcnn_cls: %.4f, train rcnn_box %.4f"
               % (epoch_log_train['rpn_cls'], epoch_log_train['rpn_box'], epoch_log_train['rcnn_cls'], epoch_log_train['rcnn_box']))
-
 
         train_log.append(epoch_log_train)
 
