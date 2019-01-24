@@ -13,7 +13,6 @@ COPY ./faster-rcnn.pt /opt/ml/model/
 
 RUN pip install -r /opt/program/requirements.txt
 WORKDIR /opt/program/lib
-RUN sh make.sh
 
 ENV PYTHONUNBUFFERED=TRUE
 ENV PYTHONDONTWRITEBYTECODE=TRUE

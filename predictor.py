@@ -1,6 +1,3 @@
-# This is the file that implements a flask server to do inferences. It's the file that you will modify to
-# implement the scoring for your own algorithm.
-
 from __future__ import print_function
 
 import os
@@ -37,20 +34,21 @@ model_path = '.'
 
 
 # A singleton for holding the model. This simply loads the model and holds it.
-# It has a predict function that does a prediction based on the model and the input data.
+# It has a predict function that makes a prediction for the input data.
 class ScoringService(object):
     model = None
 
     @classmethod
     def get_model(cls):
-        """Get the model object for this instance, loading it if it's not already loaded."""
+        """Get the model object for this instance,
+        loading it if it's not already loaded."""
         if cls.model is None:
             load_name = os.path.join(model_path, 'faster-rcnn.pt')
             classes = np.asarray(['__background__',
                                   'text',
                                   'structured_data',
                                   'graphical_chart',
-                                  'table_title'])  # hard coding this for now
+                                  'title'])  # hard coding this for now
             model = resnet(classes, 'resnet101')
             model.create_architecture()
             checkpoint = torch.load(load_name)

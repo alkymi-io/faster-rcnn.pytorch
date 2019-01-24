@@ -49,7 +49,7 @@ def start_server():
         # use sudo locally
         subprocess.check_call(['sudo', 'ln', '-sf', '/dev/stdout', '/var/log/nginx/access.log'])
         subprocess.check_call(['sudo', 'ln', '-sf', '/dev/stderr', '/var/log/nginx/error.log'])
-        nginx = subprocess.Popen(['nginx', '-c', '/home/ubuntu/persist/ml_common/faster_rcnn/nginx.conf'])
+        nginx = subprocess.Popen(['nginx', '-c', '/home/ubuntu/persist/faster-rcnn.pytorch/nginx.conf'])
         # specify full path to gunicorn
         gunicorn = subprocess.Popen(['/home/ubuntu/anaconda3/envs/pytorch_p36/bin/gunicorn',
                                      '--timeout', str(model_server_timeout),
