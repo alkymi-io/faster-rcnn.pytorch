@@ -143,15 +143,20 @@ def ping():
 
 @app.route('/invocations', methods=['POST'])
 def transformation():
+    files = request.files
+    print(type(files))
+    if isinstance(files, dict):
+        print('files is dict!')
+    for file_key, data in files.items():
+        try:
+            print(f'file key: {file_key}, data type: {type(data)}')
+            image = Image.open(data)
 
-    try:
-        data = request.data
-        bytes = io.BytesIO(data)
-        image = Image.open(bytes)
-    except Exception:
-        return Response(response='Data could not be deserialized as an image', status=415, mimetype='text/plain')
-    im_arr = np.array(image)
-    result = ScoringService.predict(im_arr)
+        except Exception:
+            return Response(response='Data could not be deserialized as an image', status=415, mimetype='text/plain')
+        im_arr = np.array(image)
+        print(f'image shape: {im_arr.shape}')
+        result = ScoringService.predict(im_arr)
     return jsonify(result)
 
 
