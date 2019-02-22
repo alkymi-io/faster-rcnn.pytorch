@@ -63,7 +63,7 @@ for split in ['train', 'val', 'val1', 'val2', 'test']:
 # Set up pdfpages
 for split in ['train', 'validation']:
     name = 'pdfpages_{}'.format(split)
-    path = '/home/ubuntu/persist/data_gen/data/pageseg_examples4_aug'
+    path = '/home/ubuntu/persist/data_gen/data/pageseg_examples6_aug'
     __sets[name] = (lambda split=split: PDFPages(split, path=path))
 
 def get_imdb(name):

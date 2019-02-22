@@ -17,7 +17,7 @@ from torch.autograd import Variable
 from torch.utils.data.sampler import Sampler
 
 from lib.model.faster_rcnn.resnet import resnet
-from lib.model.utils.net_utils import adjust_learning_rate
+from lib.model.utils.net_utils import clip_gradient, adjust_learning_rate
 from lib.model.utils.config import cfg
 from lib.roi_data_layer.roidb import combined_roidb
 from lib.roi_data_layer.roibatchLoader import roibatchLoader
@@ -84,13 +84,13 @@ def train():
     train_size = len(roidb_train)
     sampler_batch_train = sampler(train_size, batch_size)
     dataset_train = roibatchLoader(roidb_train, ratio_list_train, ratio_index_train, batch_size, imdb_train.num_classes, training=True)
-    dataloader_train = torch.utils.data.DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, shuffle=False)
+    dataloader_train = torch.utils.data.DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, sampler=sampler_batch_train)
 
     imdb_val, roidb_val, ratio_list_val, ratio_index_val = combined_roidb(imdb_name + '_validation', training=False)
     val_size = len(roidb_val)
     sampler_batch_val = sampler(val_size, batch_size)
     dataset_val = roibatchLoader(roidb_val, ratio_list_val, ratio_index_val, batch_size, imdb_val.num_classes)
-    dataloader_val = torch.utils.data.DataLoader(dataset_val, batch_size=batch_size, num_workers=num_workers, shuffle=False)
+    dataloader_val = torch.utils.data.DataLoader(dataset_val, batch_size=batch_size, num_workers=num_workers, sampler=sampler_batch_val)
 
     classes = np.asarray(['__background__',
                           'text',
@@ -147,21 +147,21 @@ def train():
             num_boxes = Variable(num_boxes.cuda())
 
             rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_box, RCNN_loss_cls, RCNN_loss_bbox, rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
-            # train_loss = rpn_loss_cls + rpn_loss_box + RCNN_loss_cls + RCNN_loss_bbox
-            #
-            # num_examples_train += im_data.shape[0]
-            # train_loss_tot += train_loss.data.cpu().numpy() * im_data.shape[0]
-            # train_rpn_cls_tot += rpn_loss_cls.data.cpu().numpy() * im_data.shape[0]
-            # train_rpn_box_tot += rpn_loss_box.data.cpu().numpy() * im_data.shape[0]
-            # train_rcnn_cls_tot += RCNN_loss_cls.data.cpu().numpy() * im_data.shape[0]
-            # train_rcnn_box_tot += RCNN_loss_bbox.data.cpu().numpy() * im_data.shape[0]
-            #
-            # fasterRCNN.zero_grad()
-            # optimizer.zero_grad()
-            # train_loss.backward()
+            train_loss = rpn_loss_cls + rpn_loss_box + RCNN_loss_cls + RCNN_loss_bbox
+
+            num_examples_train += im_data.shape[0]
+            train_loss_tot += train_loss.data.cpu().numpy() * im_data.shape[0]
+            train_rpn_cls_tot += rpn_loss_cls.data.cpu().numpy() * im_data.shape[0]
+            train_rpn_box_tot += rpn_loss_box.data.cpu().numpy() * im_data.shape[0]
+            train_rcnn_cls_tot += RCNN_loss_cls.data.cpu().numpy() * im_data.shape[0]
+            train_rcnn_box_tot += RCNN_loss_bbox.data.cpu().numpy() * im_data.shape[0]
+
+            fasterRCNN.zero_grad()
+            optimizer.zero_grad()
+            train_loss.backward()
             # clip_gradient(fasterRCNN, 1.)
-            # optimizer.step()
-            # t.set_description(desc='Batch Loss: %f' % train_loss)
+            optimizer.step()
+            t.set_description(desc='Batch Loss: %f' % train_loss)
 
         train_end_time = time.time()
 
