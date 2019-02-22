@@ -9,8 +9,6 @@ RUN apt-get install -y python-qt4 \
 
 COPY ./ /opt/program/
 
-COPY ./faster-rcnn.pt /opt/ml/model/
-
 RUN pip install -r /opt/program/requirements.txt
 WORKDIR /opt/program/lib
 
