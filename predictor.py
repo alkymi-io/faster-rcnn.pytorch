@@ -27,11 +27,6 @@ from lib.model.nms.nms_wrapper import nms
 app = Flask(__name__)
 app.secret_key = 'super secret key'
 
-# model_path = '/opt/ml/model'
-
-# path to the model file if running locally
-model_path = '.'
-
 
 # A singleton for holding the model. This simply loads the model and holds it.
 # It has a predict function that makes a prediction for the input data.
@@ -43,15 +38,11 @@ class ScoringService(object):
         """Get the model object for this instance,
         loading it if it's not already loaded."""
         if cls.model is None:
-            load_name = os.path.join(model_path, 'faster-rcnn.pt')
-            classes = np.asarray(['__background__',
-                                  'text',
-                                  'structured_data',
-                                  'graphical_chart',
-                                  'title'])  # hard coding this for now
+            load_name = 'faster-rcnn.pt'
+            checkpoint = torch.load(load_name)
+            classes = checkpoint['classes']
             model = resnet(classes, 'resnet101')
             model.create_architecture()
-            checkpoint = torch.load(load_name)
             model.load_state_dict(checkpoint['model'])
             model.cuda()
             model.eval()
@@ -133,8 +124,9 @@ class ScoringService(object):
 
 @app.route('/ping', methods=['GET'])
 def ping():
-    """Determine if the container is working and healthy. In this sample container, we declare
-    it healthy if we can load the model successfully."""
+    """Determine if the container is working and healthy.
+    We declare this sample container to be healthy
+    if we can load the model successfully."""
     model = ScoringService.get_model()
     health = model is not None  # You can insert a health check here
     status = 200 if health else 404
@@ -145,11 +137,11 @@ def ping():
 def transformation():
 
     try:
-        data = request.data
-        bytes = io.BytesIO(data)
-        image = Image.open(bytes)
+        data = io.BytesIO(request.data)
+        image = Image.open(data)
     except Exception:
-        return Response(response='Data could not be deserialized as an image', status=415, mimetype='text/plain')
+        return Response(response='Data could not be deserialized as an image',
+                        status=415, mimetype='text/plain')
     im_arr = np.array(image)
     result = ScoringService.predict(im_arr)
     return jsonify(result)
@@ -179,7 +171,9 @@ def _get_image_blob(im):
         # Prevent the biggest axis from being more than MAX_SIZE
         if np.round(im_scale * im_size_max) > cfg.TEST.MAX_SIZE:
             im_scale = float(cfg.TEST.MAX_SIZE) / float(im_size_max)
-        im = cv2.resize(im_orig, None, None, fx=im_scale, fy=im_scale, interpolation=cv2.INTER_LINEAR)
+        im = cv2.resize(im_orig, None, None,
+                        fx=im_scale, fy=im_scale,
+                        interpolation=cv2.INTER_LINEAR)
         im_scale_factors.append(im_scale)
         processed_ims.append(im)
 

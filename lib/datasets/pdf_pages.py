@@ -28,8 +28,6 @@ try:
 except NameError:
     xrange = range  # Python 3
 
-# <<<< obsolete
-
 
 class PDFPages(imdb):
     def __init__(self, split, path=None):
@@ -39,8 +37,7 @@ class PDFPages(imdb):
         self._classes = ('__background__',  # always index 0
                          'text',
                          'structured_data',
-                         'graphical_chart',
-                         'table_title')
+                         'graphical_chart')
 
         self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
         self._image_ext = '.png'
@@ -108,20 +105,7 @@ class PDFPages(imdb):
 
         This function loads/saves from/to a cache file to speed up future calls.
         """
-        cache_file = os.path.join(self.cache_path, self.name + '_gt_roidb.pkl')
-        # TODO: UNCOMMENT TO RE-ENABLE CACHING
-        # if os.path.exists(cache_file):
-        #     with open(cache_file, 'rb') as fid:
-        #         roidb = pickle.load(fid)
-        #     print('{} gt roidb loaded from {}'.format(self.name, cache_file))
-        #     return roidb
-
         gt_roidb = [self._load_pascal_annotation(index) for index in self.image_index]
-        # TODO: UNCOMMENT TO RE-ENABLE CACHING
-        # with open(cache_file, 'wb') as fid:
-        #     pickle.dump(gt_roidb, fid, pickle.HIGHEST_PROTOCOL)
-        print('wrote gt roidb to {}'.format(cache_file))
-
         return gt_roidb
 
     def selective_search_roidb(self):
