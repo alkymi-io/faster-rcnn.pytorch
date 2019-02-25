@@ -17,7 +17,7 @@ from torch.autograd import Variable
 from torch.utils.data.sampler import Sampler
 
 from lib.model.faster_rcnn.resnet import resnet
-from lib.model.utils.net_utils import clip_gradient, adjust_learning_rate
+from lib.model.utils.net_utils import adjust_learning_rate
 from lib.model.utils.config import cfg
 from lib.roi_data_layer.roidb import combined_roidb
 from lib.roi_data_layer.roibatchLoader import roibatchLoader
@@ -85,12 +85,14 @@ def train():
     sampler_batch_train = sampler(train_size, batch_size)
     dataset_train = roibatchLoader(roidb_train, ratio_list_train, ratio_index_train, batch_size, imdb_train.num_classes, training=True)
     dataloader_train = torch.utils.data.DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, sampler=sampler_batch_train)
+    # dataloader_train = torch.utils.data.DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, shuffle=False)
 
     imdb_val, roidb_val, ratio_list_val, ratio_index_val = combined_roidb(imdb_name + '_validation', training=False)
     val_size = len(roidb_val)
     sampler_batch_val = sampler(val_size, batch_size)
     dataset_val = roibatchLoader(roidb_val, ratio_list_val, ratio_index_val, batch_size, imdb_val.num_classes)
     dataloader_val = torch.utils.data.DataLoader(dataset_val, batch_size=batch_size, num_workers=num_workers, sampler=sampler_batch_val)
+    # dataloader_val = torch.utils.data.DataLoader(dataset_val, batch_size=batch_size, num_workers=num_workers, shuffle=False)
 
     classes = np.asarray(['__background__',
                           'text',
@@ -100,6 +102,8 @@ def train():
     fasterRCNN = resnet(classes, 'resnet101', pretrained=True, class_agnostic=False)
     fasterRCNN.create_architecture()
     fasterRCNN.cuda()
+    if args.mGPUs:
+        fasterRCNN = torch.nn.DataParallel(fasterRCNN)
 
     params = []
     for key, value in dict(fasterRCNN.named_parameters()).items():
@@ -147,19 +151,35 @@ def train():
             num_boxes = Variable(num_boxes.cuda())
 
             rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_box, RCNN_loss_cls, RCNN_loss_bbox, rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
-            train_loss = rpn_loss_cls + rpn_loss_box + RCNN_loss_cls + RCNN_loss_bbox
+
+            train_loss = rpn_loss_cls.mean() + rpn_loss_box.mean() + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
+
+            if args.mGPUs:
+                loss_rpn_cls = rpn_loss_cls.mean().item()
+                loss_rpn_box = rpn_loss_box.mean().item()
+                loss_rcnn_cls = RCNN_loss_cls.mean().item()
+                loss_rcnn_box = RCNN_loss_bbox.mean().item()
+                fg_cnt = torch.sum(rois_label.data.ne(0))
+                bg_cnt = rois_label.data.numel() - fg_cnt
+            else:
+                loss_rpn_cls = rpn_loss_cls.item()
+                loss_rpn_box = rpn_loss_box.item()
+                loss_rcnn_cls = RCNN_loss_cls.item()
+                loss_rcnn_box = RCNN_loss_bbox.item()
+                fg_cnt = torch.sum(rois_label.data.ne(0))
+                bg_cnt = rois_label.data.numel() - fg_cnt
+
 
             num_examples_train += im_data.shape[0]
-            train_loss_tot += train_loss.data.cpu().numpy() * im_data.shape[0]
-            train_rpn_cls_tot += rpn_loss_cls.data.cpu().numpy() * im_data.shape[0]
-            train_rpn_box_tot += rpn_loss_box.data.cpu().numpy() * im_data.shape[0]
-            train_rcnn_cls_tot += RCNN_loss_cls.data.cpu().numpy() * im_data.shape[0]
-            train_rcnn_box_tot += RCNN_loss_bbox.data.cpu().numpy() * im_data.shape[0]
+            train_loss_tot += train_loss.item()
+            train_rpn_cls_tot += rpn_loss_cls.mean().item()
+            train_rpn_box_tot += rpn_loss_box.mean().item()
+            train_rcnn_cls_tot += RCNN_loss_cls.mean().item()
+            train_rcnn_box_tot += RCNN_loss_bbox.mean().item()
 
             fasterRCNN.zero_grad()
             optimizer.zero_grad()
             train_loss.backward()
-            # clip_gradient(fasterRCNN, 1.)
             optimizer.step()
             t.set_description(desc='Batch Loss: %f' % train_loss)
 
@@ -198,14 +218,30 @@ def train():
                 num_boxes = Variable(num_boxes.cuda())
 
                 rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_box, RCNN_loss_cls, RCNN_loss_bbox, rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
-                val_loss = rpn_loss_cls + rpn_loss_box + RCNN_loss_cls + RCNN_loss_bbox
+
+                if args.mGPUs:
+                    loss_rpn_cls = rpn_loss_cls.mean().item()
+                    loss_rpn_box = rpn_loss_box.mean().item()
+                    loss_rcnn_cls = RCNN_loss_cls.mean().item()
+                    loss_rcnn_box = RCNN_loss_bbox.mean().item()
+                    fg_cnt = torch.sum(rois_label.data.ne(0))
+                    bg_cnt = rois_label.data.numel() - fg_cnt
+                else:
+                    loss_rpn_cls = rpn_loss_cls.item()
+                    loss_rpn_box = rpn_loss_box.item()
+                    loss_rcnn_cls = RCNN_loss_cls.item()
+                    loss_rcnn_box = RCNN_loss_bbox.item()
+                    fg_cnt = torch.sum(rois_label.data.ne(0))
+                    bg_cnt = rois_label.data.numel() - fg_cnt
+
+                val_loss = loss_rpn_cls.mean() + loss_rpn_box.mean() + loss_rcnn_cls.mean() + loss_rcnn_box.mean()
 
                 num_examples_val += im_data.shape[0]
-                val_loss_tot += val_loss.cpu().numpy() * im_data.shape[0]
-                val_rpn_cls_tot += rpn_loss_cls.cpu().numpy() * im_data.shape[0]
-                val_rpn_box_tot += rpn_loss_box.cpu().numpy() * im_data.shape[0]
-                val_rcnn_cls_tot += RCNN_loss_cls.cpu().numpy() * im_data.shape[0]
-                val_rcnn_box_tot += RCNN_loss_bbox.cpu().numpy() * im_data.shape[0]
+                val_loss_tot += val_loss
+                val_rpn_cls_tot += rpn_loss_cls.mean().item()
+                val_rpn_box_tot += rpn_loss_box.mean().item()
+                val_rcnn_cls_tot += RCNN_loss_cls.mean().item()
+                val_rcnn_box_tot += RCNN_loss_bbox.mean().item()
 
         val_end_time = time.time()
 
@@ -270,6 +306,9 @@ if __name__ == '__main__':
     parser.add_argument('--env', dest='env', help='training environment (local or sagemaker)', default='sagemaker', type=str)
     parser.add_argument('--load_model', help='path to model file to load for resuming training', type=str)
     parser.add_argument('--cfg', help='Optional config file', type=str)
+    parser.add_argument('--mGPUs', dest='mGPUs',
+                        help='whether use multiple GPUs',
+                        action='store_true')
 
     args = parser.parse_args()
 
