@@ -152,22 +152,6 @@ def train():
 
                 train_loss = rpn_loss_cls.mean() + rpn_loss_box.mean() + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
 
-                if args.mGPUs:
-                    loss_rpn_cls = rpn_loss_cls.mean().item()
-                    loss_rpn_box = rpn_loss_box.mean().item()
-                    loss_rcnn_cls = RCNN_loss_cls.mean().item()
-                    loss_rcnn_box = RCNN_loss_bbox.mean().item()
-                    fg_cnt = torch.sum(rois_label.data.ne(0))
-                    bg_cnt = rois_label.data.numel() - fg_cnt
-                else:
-                    loss_rpn_cls = rpn_loss_cls.item()
-                    loss_rpn_box = rpn_loss_box.item()
-                    loss_rcnn_cls = RCNN_loss_cls.item()
-                    loss_rcnn_box = RCNN_loss_bbox.item()
-                    fg_cnt = torch.sum(rois_label.data.ne(0))
-                    bg_cnt = rois_label.data.numel() - fg_cnt
-
-
                 num_examples_train += im_data.shape[0]
                 train_loss_tot += train_loss.item()
                 train_rpn_cls_tot += rpn_loss_cls.mean().item()
@@ -217,22 +201,7 @@ def train():
 
                     rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_box, RCNN_loss_cls, RCNN_loss_bbox, rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
 
-                    if args.mGPUs:
-                        loss_rpn_cls = rpn_loss_cls.mean().item()
-                        loss_rpn_box = rpn_loss_box.mean().item()
-                        loss_rcnn_cls = RCNN_loss_cls.mean().item()
-                        loss_rcnn_box = RCNN_loss_bbox.mean().item()
-                        fg_cnt = torch.sum(rois_label.data.ne(0))
-                        bg_cnt = rois_label.data.numel() - fg_cnt
-                    else:
-                        loss_rpn_cls = rpn_loss_cls.item()
-                        loss_rpn_box = rpn_loss_box.item()
-                        loss_rcnn_cls = RCNN_loss_cls.item()
-                        loss_rcnn_box = RCNN_loss_bbox.item()
-                        fg_cnt = torch.sum(rois_label.data.ne(0))
-                        bg_cnt = rois_label.data.numel() - fg_cnt
-
-                    val_loss = loss_rpn_cls.mean() + loss_rpn_box.mean() + loss_rcnn_cls.mean() + loss_rcnn_box.mean()
+                    val_loss = rpn_loss_cls.mean() + rpn_loss_box.mean() + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
 
                     num_examples_val += im_data.shape[0]
                     val_loss_tot += val_loss
