@@ -95,7 +95,7 @@ class PDFPages(imdb):
         """
 
         if self._split == 'train' or self._split == 'validation':
-            return '/opt/ml/input/data/'
+            return '/opt/ml/input/data/training'
         else:
             raise ValueError
 

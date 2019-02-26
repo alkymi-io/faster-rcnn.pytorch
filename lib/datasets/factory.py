@@ -64,7 +64,7 @@ for split in ['train', 'val', 'val1', 'val2', 'test']:
 for split in ['train', 'validation']:
     name = 'pdfpages_{}'.format(split)
     # path = '/home/ubuntu/persist/data_gen/data/pageseg/20190224'
-    path = '/opt/ml/input/data/all'
+    path = f'/opt/ml/input/data/training'
 
     __sets[name] = (lambda split=split: PDFPages(split, path=path))
 
