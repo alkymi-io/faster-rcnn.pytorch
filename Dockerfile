@@ -8,6 +8,7 @@ RUN apt-get install -y python-qt4 \
     ca-certificates
 
 COPY ./ /opt/program/
+COPY ./hyperparameters.json /opt/ml/input/config/hyperparameters.json
 
 RUN pip install -r /opt/program/requirements.txt
 WORKDIR /opt/program/lib

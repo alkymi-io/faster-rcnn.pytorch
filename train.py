@@ -49,7 +49,7 @@ class sampler(Sampler):
         return self.num_data
 
 
-def train():
+def train(mGPUs):
 
     if args.env == 'sagemaker':
         prefix = '/opt/ml/'
@@ -100,7 +100,7 @@ def train():
         fasterRCNN = resnet(classes, 'resnet101', pretrained=True, class_agnostic=False)
         fasterRCNN.create_architecture()
         fasterRCNN.cuda()
-        if args.mGPUs:
+        if mGPUs:
             fasterRCNN = torch.nn.DataParallel(fasterRCNN)
 
         params = []
@@ -273,14 +273,14 @@ if __name__ == '__main__':
     parser.add_argument('--env', dest='env', help='training environment (local or sagemaker)', default='sagemaker', type=str)
     parser.add_argument('--load_model', help='path to model file to load for resuming training', type=str)
     parser.add_argument('--cfg', help='Optional config file', type=str)
-    parser.add_argument('--mGPUs', dest='mGPUs',
-                        help='whether use multiple GPUs',
-                        action='store_true')
+    # parser.add_argument('--mGPUs', dest='mGPUs',
+    #                     help='whether use multiple GPUs',
+    #                     action='store_true')
 
     args = parser.parse_args()
 
     cfg.TRAIN.USE_FLIPPED = False
-    train()
+    train(True)
 
     # A zero exit code causes the job to be marked a Succeeded.
     sys.exit(0)

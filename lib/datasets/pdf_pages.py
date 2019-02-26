@@ -31,7 +31,7 @@ except NameError:
 
 class PDFPages(imdb):
     def __init__(self, split, path=None):
-        imdb.__init__(self, 'pdfpages' + '_' + split)
+        imdb.__init__(self, 'pdfpages_' + split)
         self._split = split
         self._path = self._get_default_path() if path is None else path
         self._classes = ('__background__',  # always index 0
