@@ -143,10 +143,12 @@ def train(mGPUs):
 
             t = tqdm(dataloader_train)
             for batch_idx, (im_data, im_info, gt_boxes, num_boxes) in enumerate(t):
-                im_data = Variable(im_data.cuda())
-                im_info = Variable(im_info.cuda())
-                gt_boxes = Variable(gt_boxes.cuda())
-                num_boxes = Variable(num_boxes.cuda())
+                ok_mask = gt_boxes.sum(dim=1).sum(dim=1)>0
+
+                im_data = Variable(im_data.cuda())[ok_mask]
+                im_info = Variable(im_info.cuda())[ok_mask]
+                gt_boxes = Variable(gt_boxes.cuda())[ok_mask]
+                num_boxes = Variable(num_boxes.cuda())[ok_mask]
 
                 rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_box, RCNN_loss_cls, RCNN_loss_bbox, rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
 
@@ -194,10 +196,12 @@ def train(mGPUs):
 
             with torch.no_grad():
                 for im_data, im_info, gt_boxes, num_boxes in tqdm(dataloader_val):
-                    im_data = Variable(im_data.cuda())
-                    im_info = Variable(im_info.cuda())
-                    gt_boxes = Variable(gt_boxes.cuda())
-                    num_boxes = Variable(num_boxes.cuda())
+                    ok_mask = gt_boxes.sum(dim=1).sum(dim=1) > 0
+
+                    im_data = Variable(im_data.cuda())[ok_mask]
+                    im_info = Variable(im_info.cuda())[ok_mask]
+                    gt_boxes = Variable(gt_boxes.cuda())[ok_mask]
+                    num_boxes = Variable(num_boxes.cuda())[ok_mask]
 
                     rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_box, RCNN_loss_cls, RCNN_loss_bbox, rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
 
