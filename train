@@ -56,12 +56,10 @@ def train(mGPUs):
         early_stopping_patience = float(trainingParams.get('patience', 4))
 
         imdb_train, roidb_train, ratio_list_train, ratio_index_train = combined_roidb(imdb_name + '_train')
-        train_size = len(roidb_train)
         dataset_train = roibatchLoader(roidb_train, ratio_list_train, ratio_index_train, batch_size, imdb_train.num_classes, training=True)
         dataloader_train = torch.utils.data.DataLoader(dataset_train, batch_size=batch_size, num_workers=num_workers, drop_last=True)
 
         imdb_val, roidb_val, ratio_list_val, ratio_index_val = combined_roidb(imdb_name + '_validation', training=False)
-        val_size = len(roidb_val)
         dataset_val = roibatchLoader(roidb_val, ratio_list_val, ratio_index_val, batch_size, imdb_val.num_classes)
         dataloader_val = torch.utils.data.DataLoader(dataset_val, batch_size=batch_size, num_workers=num_workers, drop_last=True)
 
@@ -116,29 +114,30 @@ def train(mGPUs):
 
             t = tqdm(dataloader_train)
             for batch_idx, (im_data, im_info, gt_boxes, num_boxes) in enumerate(t):
-                ok_mask = gt_boxes.sum(dim=1).sum(dim=1)>0
+                ok_mask = gt_boxes.sum(dim=1).sum(dim=1) > 0
 
                 im_data = Variable(im_data.cuda())[ok_mask]
                 im_info = Variable(im_info.cuda())[ok_mask]
                 gt_boxes = Variable(gt_boxes.cuda())[ok_mask]
                 num_boxes = Variable(num_boxes.cuda())[ok_mask]
+                current_batch_size = im_data.shape[0]
 
                 rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_box, RCNN_loss_cls, RCNN_loss_bbox, rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
 
-                train_loss = rpn_loss_cls.mean() + rpn_loss_box.mean() + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
+                batch_train_loss = rpn_loss_cls.sum() + rpn_loss_box.sum() + RCNN_loss_cls.sum() + RCNN_loss_bbox.sum()
 
-                num_examples_train += im_data.shape[0]
-                train_loss_tot += train_loss.item()
-                train_rpn_cls_tot += rpn_loss_cls.mean().item()
-                train_rpn_box_tot += rpn_loss_box.mean().item()
-                train_rcnn_cls_tot += RCNN_loss_cls.mean().item()
-                train_rcnn_box_tot += RCNN_loss_bbox.mean().item()
+                num_examples_train += current_batch_size
+                train_loss_tot += batch_train_loss.item()
+                train_rpn_cls_tot += rpn_loss_cls.sum().item()
+                train_rpn_box_tot += rpn_loss_box.sum().item()
+                train_rcnn_cls_tot += RCNN_loss_cls.sum().item()
+                train_rcnn_box_tot += RCNN_loss_bbox.sum().item()
 
                 fasterRCNN.zero_grad()
                 optimizer.zero_grad()
-                train_loss.backward()
+                batch_train_loss.backward()
                 optimizer.step()
-                t.set_description(desc='Batch Loss: %f' % train_loss)
+                t.set_description(desc='Training Mean Batch Loss: %f' % (batch_train_loss.item() / current_batch_size))
 
             train_end_time = time.time()
 
@@ -151,9 +150,9 @@ def train(mGPUs):
             with open(train_log_path, 'a') as f:
                 f.write(','.join([str(v) for v in epoch_log_train.values()]) + '\n')
 
-            print("[epoch %2d] train loss: %.4f, lr: %.2e" % (epoch, epoch_log_train['loss'], lr))
-            print("\t\t\ttrain time cost: %f" % (train_end_time - train_start_time))
-            print("\t\t\ttrain rpn_cls: %.4f, train rpn_box: %.4f, train rcnn_cls: %.4f, train rcnn_box %.4f"
+            print("[epoch %2d] train loss: %.4f; lr: %.2e;" % (epoch, epoch_log_train['loss'], lr))
+            print("\t\t\ttrain time cost: %f;" % (train_end_time - train_start_time))
+            print("\t\t\ttrain rpn_cls: %.4f; train rpn_box: %.4f; train rcnn_cls: %.4f; train rcnn_box %.4f;"
                   % (epoch_log_train['rpn_cls'], epoch_log_train['rpn_box'], epoch_log_train['rcnn_cls'], epoch_log_train['rcnn_box']))
 
             train_log.append(epoch_log_train)
@@ -168,24 +167,28 @@ def train(mGPUs):
             val_start_time = time.time()
 
             with torch.no_grad():
-                for im_data, im_info, gt_boxes, num_boxes in tqdm(dataloader_val):
+                t = tqdm(dataloader_val)
+                for im_data, im_info, gt_boxes, num_boxes in t:
                     ok_mask = gt_boxes.sum(dim=1).sum(dim=1) > 0
 
                     im_data = Variable(im_data.cuda())[ok_mask]
                     im_info = Variable(im_info.cuda())[ok_mask]
                     gt_boxes = Variable(gt_boxes.cuda())[ok_mask]
                     num_boxes = Variable(num_boxes.cuda())[ok_mask]
+                    current_batch_size = im_data.shape[0]
 
                     rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_box, RCNN_loss_cls, RCNN_loss_bbox, rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
 
-                    val_loss = rpn_loss_cls.mean() + rpn_loss_box.mean() + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
+                    batch_val_loss = rpn_loss_cls.sum() + rpn_loss_box.sum() + RCNN_loss_cls.sum() + RCNN_loss_bbox.sum()
 
                     num_examples_val += im_data.shape[0]
-                    val_loss_tot += val_loss
-                    val_rpn_cls_tot += rpn_loss_cls.mean().item()
-                    val_rpn_box_tot += rpn_loss_box.mean().item()
-                    val_rcnn_cls_tot += RCNN_loss_cls.mean().item()
-                    val_rcnn_box_tot += RCNN_loss_bbox.mean().item()
+                    val_loss_tot += batch_val_loss
+                    val_rpn_cls_tot += rpn_loss_cls.sum().item()
+                    val_rpn_box_tot += rpn_loss_box.sum().item()
+                    val_rcnn_cls_tot += RCNN_loss_cls.sum().item()
+                    val_rcnn_box_tot += RCNN_loss_bbox.sum().item()
+
+                    t.set_description(desc='Validation Mean Batch Loss: %f' % (batch_val_loss.item() / current_batch_size))
 
             val_end_time = time.time()
 
@@ -199,9 +202,9 @@ def train(mGPUs):
             with open(val_log_path, 'a') as f:
                 f.write(','.join([str(v) for v in epoch_log_val.values()]) + '\n')
 
-            print("[epoch %2d] val loss: %.4f, lr: %.2e" % (epoch, epoch_log_val['loss'], lr))
-            print("\t\t\tval time cost: %f" % (val_end_time - val_start_time))
-            print("\t\t\tval rpn_cls: %.4f, val rpn_box: %.4f, val rcnn_cls: %.4f, val rcnn_box %.4f"
+            print("[epoch %2d] val loss: %.4f; lr: %.2e;" % (epoch, epoch_log_val['loss'], lr))
+            print("\t\t\tval time cost: %f;" % (val_end_time - val_start_time))
+            print("\t\t\tval rpn_cls: %.4f; val rpn_box: %.4f; val rcnn_cls: %.4f; val rcnn_box %.4f;"
                   % (epoch_log_val['rpn_cls'], epoch_log_val['rpn_box'], epoch_log_val['rcnn_cls'],  epoch_log_val['rcnn_box']))
 
             val_log.append(epoch_log_val)
