@@ -23,15 +23,15 @@ from lib.roi_data_layer.roidb import combined_roidb
 from lib.roi_data_layer.roibatchLoader import roibatchLoader
 
 
-def train(mGPUs):
+def train(env, mGPUs):
 
-    if args.env == 'sagemaker':
+    if env == 'sagemaker':
         prefix = '/opt/ml/'
         model_path = os.path.join(prefix, 'model')
         param_path = os.path.join(prefix, 'input/config/hyperparameters.json')
         output_path = os.path.join(prefix, 'output')
 
-    elif args.env == 'local':
+    elif env == 'local':
         model_path = './save/%s/' % str(int(time.time()))
         if not os.path.exists(model_path):
             os.makedirs(model_path)
@@ -124,7 +124,7 @@ def train(mGPUs):
 
                 rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_box, RCNN_loss_cls, RCNN_loss_bbox, rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
 
-                batch_train_loss = rpn_loss_cls.sum() + rpn_loss_box.sum() + RCNN_loss_cls.sum() + RCNN_loss_bbox.sum()
+                batch_train_loss = rpn_loss_cls.mean() + rpn_loss_box.mean() + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
 
                 num_examples_train += current_batch_size
                 train_loss_tot += batch_train_loss.item()
@@ -137,7 +137,7 @@ def train(mGPUs):
                 optimizer.zero_grad()
                 batch_train_loss.backward()
                 optimizer.step()
-                t.set_description(desc='Training Mean Batch Loss: %f' % (batch_train_loss.item() / current_batch_size))
+                t.set_description(desc=f'Training Mean Batch Loss: {batch_train_loss.item()}')
 
             train_end_time = time.time()
 
@@ -260,7 +260,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     cfg.TRAIN.USE_FLIPPED = False
-    train(True)
+    train(args.env, True)
 
     # A zero exit code causes the job to be marked a Succeeded.
     sys.exit(0)
