@@ -1,6 +1,5 @@
 from __future__ import print_function
 
-import os
 import cv2
 import io
 from PIL import Image
@@ -43,7 +42,9 @@ class ScoringService(object):
             classes = checkpoint['classes']
             model = resnet(classes, 'resnet101')
             model.create_architecture()
+            model = torch.nn.DataParallel(model)
             model.load_state_dict(checkpoint['model'])
+            model.classes = classes
             model.cuda()
             model.eval()
             cls.model = model
