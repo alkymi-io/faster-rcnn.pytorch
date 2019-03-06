@@ -37,7 +37,7 @@ class ScoringService(object):
         """Get the model object for this instance,
         loading it if it's not already loaded."""
         if cls.model is None:
-            load_name = 'faster-rcnn.pt'
+            load_name = '/opt/ml/model/faster-rcnn.pt'
             checkpoint = torch.load(load_name)
             classes = checkpoint['classes']
             model = resnet(classes, 'resnet101')
