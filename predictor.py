@@ -38,14 +38,15 @@ class ScoringService(object):
         loading it if it's not already loaded."""
         if cls.model is None:
             load_name = '/opt/ml/model/faster-rcnn.pt'
-            checkpoint = torch.load(load_name)
+            # load_name = 'faster-rcnn.pt'
+            checkpoint = torch.load(load_name, map_location=lambda storage, loc: storage)
             classes = checkpoint['classes']
             model = resnet(classes, 'resnet101')
             model.create_architecture()
             model = torch.nn.DataParallel(model)
             model.load_state_dict(checkpoint['model'])
             model.classes = classes
-            model.cuda()
+            # model.cuda()
             model.eval()
             cls.model = model
 

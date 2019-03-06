@@ -179,16 +179,16 @@ def train(env, mGPUs):
 
                     rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_box, RCNN_loss_cls, RCNN_loss_bbox, rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
 
-                    batch_val_loss = rpn_loss_cls.sum() + rpn_loss_box.sum() + RCNN_loss_cls.sum() + RCNN_loss_bbox.sum()
+                    batch_val_loss = rpn_loss_cls.mean() + rpn_loss_box.mean() + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
 
-                    num_examples_val += im_data.shape[0]
+                    num_examples_val += current_batch_size
                     val_loss_tot += batch_val_loss
                     val_rpn_cls_tot += rpn_loss_cls.sum().item()
                     val_rpn_box_tot += rpn_loss_box.sum().item()
                     val_rcnn_cls_tot += RCNN_loss_cls.sum().item()
                     val_rcnn_box_tot += RCNN_loss_bbox.sum().item()
 
-                    t.set_description(desc='Validation Mean Batch Loss: %f' % (batch_val_loss.item() / current_batch_size))
+                    t.set_description(desc='Validation Mean Batch Loss: %f' % batch_val_loss.item())
 
             val_end_time = time.time()
 
