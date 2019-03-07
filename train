@@ -37,7 +37,7 @@ def train(env, mGPUs):
             os.makedirs(model_path)
         param_path = './hyperparameters.json'
         copy(param_path, model_path)
-        output_path = './output'
+        output_path = '.'
     else:
         raise ValueError
 
@@ -114,24 +114,36 @@ def train(env, mGPUs):
 
             t = tqdm(dataloader_train)
             for batch_idx, (im_data, im_info, gt_boxes, num_boxes) in enumerate(t):
+
                 ok_mask = gt_boxes.sum(dim=1).sum(dim=1) > 0
 
                 im_data = Variable(im_data.cuda())[ok_mask]
                 im_info = Variable(im_info.cuda())[ok_mask]
                 gt_boxes = Variable(gt_boxes.cuda())[ok_mask]
                 num_boxes = Variable(num_boxes.cuda())[ok_mask]
-                current_batch_size = im_data.shape[0]
+                current_batch_size = ok_mask.sum()
 
-                rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_box, RCNN_loss_cls, RCNN_loss_bbox, rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
+                rois, \
+                cls_prob, bbox_pred, \
+                rpn_loss_cls, rpn_loss_box, \
+                RCNN_loss_cls, RCNN_loss_bbox, \
+                rois_label = \
+                    fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
 
-                batch_train_loss = rpn_loss_cls.mean() + rpn_loss_box.mean() + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
+                batch_rpn_loss_cls = rpn_loss_cls.mean()
+                batch_rpn_loss_box = rpn_loss_box.mean()
+                batch_RCNN_loss_cls = RCNN_loss_cls.mean()
+                batch_RCNN_loss_bbox = RCNN_loss_bbox.mean()
+
+                batch_train_loss = batch_rpn_loss_cls + batch_rpn_loss_box + \
+                                   batch_RCNN_loss_cls + batch_RCNN_loss_bbox
 
                 num_examples_train += current_batch_size
-                train_loss_tot += batch_train_loss.item()
-                train_rpn_cls_tot += rpn_loss_cls.sum().item()
-                train_rpn_box_tot += rpn_loss_box.sum().item()
-                train_rcnn_cls_tot += RCNN_loss_cls.sum().item()
-                train_rcnn_box_tot += RCNN_loss_bbox.sum().item()
+                train_loss_tot += batch_train_loss.item() * batch_size
+                train_rpn_cls_tot += batch_rpn_loss_cls.item() * batch_size
+                train_rpn_box_tot += batch_rpn_loss_box.item() * batch_size
+                train_rcnn_cls_tot += batch_RCNN_loss_cls.item() * batch_size
+                train_rcnn_box_tot += batch_RCNN_loss_bbox.item() * batch_size
 
                 fasterRCNN.zero_grad()
                 optimizer.zero_grad()
@@ -175,11 +187,17 @@ def train(env, mGPUs):
                     im_info = Variable(im_info.cuda())[ok_mask]
                     gt_boxes = Variable(gt_boxes.cuda())[ok_mask]
                     num_boxes = Variable(num_boxes.cuda())[ok_mask]
-                    current_batch_size = im_data.shape[0]
+                    current_batch_size = ok_mask.sum()
 
-                    rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_box, RCNN_loss_cls, RCNN_loss_bbox, rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
+                    rois, \
+                    cls_prob, bbox_pred, \
+                    rpn_loss_cls, rpn_loss_box, \
+                    RCNN_loss_cls, RCNN_loss_bbox, \
+                    rois_label = \
+                        fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
 
-                    batch_val_loss = rpn_loss_cls.mean() + rpn_loss_box.mean() + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
+                    batch_val_loss = rpn_loss_cls.mean() + rpn_loss_box.mean() + \
+                                     RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
 
                     num_examples_val += current_batch_size
                     val_loss_tot += batch_val_loss

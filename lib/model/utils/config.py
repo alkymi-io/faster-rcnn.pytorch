@@ -275,12 +275,12 @@ __C.MATLAB = 'matlab'
 __C.EXP_DIR = 'default'
 
 # Use GPU implementation of non-maximum suppression
-__C.USE_GPU_NMS = True
+__C.USE_GPU_NMS = False
 
 # Default GPU device id
 __C.GPU_ID = 0
 
-__C.POOLING_MODE = 'crop'
+__C.POOLING_MODE = 'pool'
 
 # Size of the pooled region after RoI pooling
 __C.POOLING_SIZE = 7
