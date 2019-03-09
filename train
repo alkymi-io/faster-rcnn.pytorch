@@ -139,11 +139,11 @@ def train(env, mGPUs):
                                    batch_RCNN_loss_cls + batch_RCNN_loss_bbox
 
                 num_examples_train += current_batch_size
-                train_loss_tot += batch_train_loss.item() * batch_size
-                train_rpn_cls_tot += batch_rpn_loss_cls.item() * batch_size
-                train_rpn_box_tot += batch_rpn_loss_box.item() * batch_size
-                train_rcnn_cls_tot += batch_RCNN_loss_cls.item() * batch_size
-                train_rcnn_box_tot += batch_RCNN_loss_bbox.item() * batch_size
+                train_loss_tot += batch_train_loss.item() * current_batch_size
+                train_rpn_cls_tot += batch_rpn_loss_cls.item() * current_batch_size
+                train_rpn_box_tot += batch_rpn_loss_box.item() * current_batch_size
+                train_rcnn_cls_tot += batch_RCNN_loss_cls.item() * current_batch_size
+                train_rcnn_box_tot += batch_RCNN_loss_bbox.item() * current_batch_size
 
                 fasterRCNN.zero_grad()
                 optimizer.zero_grad()
@@ -196,15 +196,20 @@ def train(env, mGPUs):
                     rois_label = \
                         fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
 
-                    batch_val_loss = rpn_loss_cls.mean() + rpn_loss_box.mean() + \
-                                     RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
+                    batch_rpn_loss_cls = rpn_loss_cls.mean()
+                    batch_rpn_loss_box = rpn_loss_box.mean()
+                    batch_RCNN_loss_cls = RCNN_loss_cls.mean()
+                    batch_RCNN_loss_bbox = RCNN_loss_bbox.mean()
+
+                    batch_val_loss = batch_rpn_loss_cls + batch_rpn_loss_box + \
+                                     batch_RCNN_loss_cls + batch_RCNN_loss_bbox
 
                     num_examples_val += current_batch_size
-                    val_loss_tot += batch_val_loss
-                    val_rpn_cls_tot += rpn_loss_cls.sum().item()
-                    val_rpn_box_tot += rpn_loss_box.sum().item()
-                    val_rcnn_cls_tot += RCNN_loss_cls.sum().item()
-                    val_rcnn_box_tot += RCNN_loss_bbox.sum().item()
+                    val_loss_tot += batch_val_loss * current_batch_size
+                    val_rpn_cls_tot += rpn_loss_cls.item() * current_batch_size
+                    val_rpn_box_tot += rpn_loss_box.item() * current_batch_size
+                    val_rcnn_cls_tot += RCNN_loss_cls.item() * current_batch_size
+                    val_rcnn_box_tot += RCNN_loss_bbox.item() * current_batch_size
 
                     t.set_description(desc='Validation Mean Batch Loss: %f' % batch_val_loss.item())
 
