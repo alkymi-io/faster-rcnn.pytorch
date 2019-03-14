@@ -9,7 +9,6 @@ import time
 from argparse import ArgumentParser
 from shutil import copy
 import traceback
-from tqdm import tqdm
 import numpy as np
 
 import torch
@@ -44,16 +43,18 @@ def train(env, mGPUs):
     print('Starting the training.')
     try:
         with open(param_path, 'r') as tc:
-            trainingParams = json.load(tc)
+            hyperparameters = json.load(tc)
 
-        batch_size = int(trainingParams.get('batch_size', None))
-        epochs = int(trainingParams.get('epochs', None))
-        lr = float(trainingParams.get('lr', None))
-        imdb_name = trainingParams.get('imdb_name', None)  # 'fakepages'
-        num_workers = int(trainingParams.get('num_workers', None))
-        lr_patience = int(trainingParams.get('lr_decay_step', 2))
-        lr_decay_gamma = float(trainingParams.get('lr_decay_gamma', 0.1))
-        early_stopping_patience = float(trainingParams.get('patience', 4))
+        print(hyperparameters)
+
+        batch_size = int(hyperparameters['batch_size'])
+        epochs = int(hyperparameters['epochs'])
+        lr = float(hyperparameters['lr'])
+        imdb_name = hyperparameters['imdb_name']  # e.g. 'fakepages'
+        num_workers = int(hyperparameters['num_workers'])
+        lr_patience = int(hyperparameters['lr_decay_step'])
+        lr_decay_gamma = float(hyperparameters['lr_decay_gamma'])  # 0.1
+        early_stopping_patience = float(hyperparameters['patience'])  # 4
 
         imdb_train, roidb_train, ratio_list_train, ratio_index_train = combined_roidb(imdb_name + '_train')
         dataset_train = roibatchLoader(roidb_train, ratio_list_train, ratio_index_train, batch_size, imdb_train.num_classes, training=True)
@@ -112,8 +113,7 @@ def train(env, mGPUs):
 
             train_start_time = time.time()
 
-            t = tqdm(dataloader_train)
-            for batch_idx, (im_data, im_info, gt_boxes, num_boxes) in enumerate(t):
+            for batch_idx, (im_data, im_info, gt_boxes, num_boxes) in enumerate(dataloader_train):
 
                 ok_mask = gt_boxes.sum(dim=1).sum(dim=1) > 0
 
@@ -149,7 +149,6 @@ def train(env, mGPUs):
                 optimizer.zero_grad()
                 batch_train_loss.backward()
                 optimizer.step()
-                t.set_description(desc=f'Training Mean Batch Loss: {batch_train_loss.item()}')
 
             train_end_time = time.time()
 
@@ -163,7 +162,7 @@ def train(env, mGPUs):
                 f.write(','.join([str(v) for v in epoch_log_train.values()]) + '\n')
 
             print("[epoch %2d] train loss: %.4f; lr: %.2e;" % (epoch, epoch_log_train['loss'], lr))
-            print("\t\t\ttrain time cost: %f;" % (train_end_time - train_start_time))
+            print("\t\t\ttrain time: %f;" % (train_end_time - train_start_time))
             print("\t\t\ttrain rpn_cls: %.4f; train rpn_box: %.4f; train rcnn_cls: %.4f; train rcnn_box %.4f;"
                   % (epoch_log_train['rpn_cls'], epoch_log_train['rpn_box'], epoch_log_train['rcnn_cls'], epoch_log_train['rcnn_box']))
 
@@ -179,8 +178,7 @@ def train(env, mGPUs):
             val_start_time = time.time()
 
             with torch.no_grad():
-                t = tqdm(dataloader_val)
-                for im_data, im_info, gt_boxes, num_boxes in t:
+                for im_data, im_info, gt_boxes, num_boxes in dataloader_val:
                     ok_mask = gt_boxes.sum(dim=1).sum(dim=1) > 0
 
                     im_data = Variable(im_data.cuda())[ok_mask]
@@ -211,8 +209,6 @@ def train(env, mGPUs):
                     val_rcnn_cls_tot += RCNN_loss_cls.item() * current_batch_size
                     val_rcnn_box_tot += RCNN_loss_bbox.item() * current_batch_size
 
-                    t.set_description(desc='Validation Mean Batch Loss: %f' % batch_val_loss.item())
-
             val_end_time = time.time()
 
             epoch_log_val = {'epoch': epoch,
@@ -226,7 +222,7 @@ def train(env, mGPUs):
                 f.write(','.join([str(v) for v in epoch_log_val.values()]) + '\n')
 
             print("[epoch %2d] val loss: %.4f; lr: %.2e;" % (epoch, epoch_log_val['loss'], lr))
-            print("\t\t\tval time cost: %f;" % (val_end_time - val_start_time))
+            print("\t\t\tval time: %f;" % (val_end_time - val_start_time))
             print("\t\t\tval rpn_cls: %.4f; val rpn_box: %.4f; val rcnn_cls: %.4f; val rcnn_box %.4f;"
                   % (epoch_log_val['rpn_cls'], epoch_log_val['rpn_box'], epoch_log_val['rcnn_cls'],  epoch_log_val['rcnn_box']))
 

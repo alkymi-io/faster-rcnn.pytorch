@@ -13,10 +13,12 @@ from argparse import ArgumentParser
 
 def main(name):
     predictor = sagemaker.predictor.RealTimePredictor('faster-rcnn-ep')
+    # predictor = sagemaker.predictor.RealTimePredictor('faster-rcnn-2019-03-01-2-ep')
 
     results = []
 
-    path = '/home/ubuntu/persist/data_gen/data/pageseg_examples4/validation_annotation/'
+    # path = '/home/ubuntu/persist/data_gen/data/pageseg/5/validation_annotation/'
+    path = '/home/ubuntu/persist/data_gen/data/pageseg/20190226/validation_annotation'
     filenames = os.listdir(path)
     labels = ['text', 'graphical_chart', 'structured_data']
     tp_counts = dict()
@@ -30,12 +32,14 @@ def main(name):
             page_image_response = requests.get('https://pdf-service.alkymi.cloud/v2/getPageImage', params=params)
             prediction_response = predictor.predict(page_image_response.content)
         #     prediction_response = requests.post('http://54.173.93.209:8080/invocations', data=page_image_response.content).content
+        #     prediction_response = requests.post('http://localhost:8080/invocations', data=page_image_response.content).content
             pred = json.loads(prediction_response)['pred']
             img_bytes = BytesIO(page_image_response.content)
             img = Image.open(img_bytes)
         except KeyboardInterrupt:
             break
         except:
+            print('Exception')
             continue
 
         file_path = os.path.join(path, filename)
@@ -66,7 +70,6 @@ def main(name):
                     result = (pred_box[4], iou_max, label)
                 results.append(result)
 
-    labels = ['text', 'structured_data', 'graphical_chart']
     label_aps = dict()
     for label in labels:
         iou_threshes = np.arange(0.5, 1.0, 0.05)
@@ -89,11 +92,51 @@ def main(name):
             aps.append(ap)
         label_aps[label] = aps
 
+    results_path = './results/'
+    if not os.path.isdir(results_path):
+        os.mkdir(results_path)
+
     with open(f'./results/{name}.txt', 'w') as f:
         for label, aps in label_aps.items():
-            f.write(label + '\n')
-            f.write(str(sum(aps)/len(aps)) + '\n')
-            f.write(json.dumps(aps) + '\n\n')
+            s1 = label
+            f.write(s1 + '\n')
+            s2 = str(sum(aps)/len(aps))
+            f.write(s2 + '\n')
+            s3 = json.dumps(aps)
+            f.write(s3 + '\n\n')
+
+            print(s1)
+            print(s2)
+            print(s3 + '\n')
+
+
+def f(pred, xml_data, labels, img_size):
+    for label in labels:
+        for obj in xml_data['annotation']['object']:
+            if obj['name'] == label:
+                tp_counts[label] = tp_counts.get(label, 0) + 1
+
+        for pred_box in pred.get(label, []):
+            pred_mask = np.zeros(img_size)
+            pred_mask[int(pred_box[0]):int(pred_box[2]),
+            int(pred_box[1]):int(pred_box[3])] = 1
+            iou_max = 0
+            result = None
+            for obj in xml_data['annotation']['object']:
+                if obj['name'] == label:
+                    gt_box = obj['bndbox']
+                    gt_mask = np.zeros(img_size)
+                    gt_mask[
+                    int(float(gt_box['xmin'])):int(float(gt_box['xmax'])),
+                    int(float(gt_box['ymin'])):int(float(gt_box['ymax']))] = 1
+
+                    intersection = np.logical_and(gt_mask, pred_mask).sum()
+                    union = np.logical_or(gt_mask, pred_mask).sum()
+                    iou = intersection / union if union else 0.0
+                    if iou > iou_max:
+                        iou_max = iou
+                result = (pred_box[4], iou_max, label)
+            return result
 
 
 if __name__ == '__main__':
