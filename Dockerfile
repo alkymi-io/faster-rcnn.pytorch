@@ -1,4 +1,4 @@
-FROM pytorch/pytorch:0.4-cuda9-cudnn7-devel
+FROM pytorch/pytorch:0.4_cuda9_cudnn7
 
 RUN apt-get update
 RUN apt-get install -y python-qt4 \
