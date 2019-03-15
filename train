@@ -45,7 +45,7 @@ def train(env, mGPUs):
         with open(param_path, 'r') as tc:
             hyperparameters = json.load(tc)
 
-        print(hyperparameters)
+        print('hyperparameters:', hyperparameters)
 
         batch_size = int(hyperparameters['batch_size'])
         epochs = int(hyperparameters['epochs'])
