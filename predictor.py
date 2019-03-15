@@ -14,6 +14,7 @@ import numpy as np
 
 import torch
 from torch.autograd import Variable
+from torch import nn
 
 from lib.model.faster_rcnn.resnet import resnet
 from lib.model.rpn.bbox_transform import bbox_transform_inv, clip_boxes
@@ -39,14 +40,14 @@ class ScoringService(object):
         if cls.model is None:
             load_name = '/opt/ml/model/faster-rcnn.pt'
             # load_name = 'faster-rcnn.pt'
+
             checkpoint = torch.load(load_name, map_location=lambda storage, loc: storage)
-            classes = checkpoint['classes']
-            model = resnet(classes, 'resnet101')
+            cls.classes = checkpoint['classes']
+            model = resnet(cls.classes, 'resnet101')
             model.create_architecture()
-            model = torch.nn.DataParallel(model)
+
+            model = nn.DataParallel(model)
             model.load_state_dict(checkpoint['model'])
-            model.classes = classes
-            model.cuda()
             model.eval()
             cls.model = model
 
@@ -69,13 +70,13 @@ class ScoringService(object):
             blobs, im_scales = _get_image_blob(im_in)
             assert len(im_scales) == 1, "Only single-image batch implemented"
             im_blob = blobs
-            im_data = Variable(torch.from_numpy(im_blob).permute(0, 3, 1, 2).cuda())
+            im_data = Variable(torch.from_numpy(im_blob).permute(0, 3, 1, 2))
 
             im_info_np = np.array([[im_blob.shape[1], im_blob.shape[2], im_scales[0]]], dtype=np.float32)
-            im_info = Variable(torch.from_numpy(im_info_np).cuda())
+            im_info = Variable(torch.from_numpy(im_info_np))
 
-            gt_boxes = Variable(torch.zeros(1, 1, 5).cuda())
-            num_boxes = Variable(torch.zeros(1).cuda())
+            gt_boxes = Variable(torch.zeros(1, 1, 5))
+            num_boxes = Variable(torch.zeros(1))
             rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_box, RCNN_loss_cls, RCNN_loss_bbox, rois_label = cls.model(im_data, im_info, gt_boxes, num_boxes)
 
             scores = cls_prob.data
@@ -86,10 +87,10 @@ class ScoringService(object):
                 box_deltas = bbox_pred.data
                 if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
                     # Optionally normalize targets by a precomputed mean and stdev
-                    box_deltas = box_deltas.view(-1, 4) * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
-                                 + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
+                    box_deltas = box_deltas.view(-1, 4) * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS) \
+                                 + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS)
 
-                    box_deltas = box_deltas.view(1, -1, 4 * len(cls.model.classes))
+                    box_deltas = box_deltas.view(1, -1, 4 * len(cls.classes))
 
                 pred_boxes = bbox_transform_inv(boxes, box_deltas, 1)
                 pred_boxes = clip_boxes(pred_boxes, im_info.data, 1)
@@ -103,7 +104,7 @@ class ScoringService(object):
             pred_boxes = pred_boxes.squeeze()
 
             result = dict()
-            for j in range(1, len(cls.model.classes)):
+            for j in range(1, len(cls.classes)):
                 inds = torch.nonzero(scores[:, j] > thresh).view(-1)
                 # if there is det
                 if inds.numel() > 0:
@@ -115,7 +116,7 @@ class ScoringService(object):
                     cls_dets = cls_dets[order]
                     keep = nms(cls_dets, cfg.TEST.NMS, force_cpu=not cfg.USE_GPU_NMS)
                     cls_dets = cls_dets[keep.view(-1).long()]
-                    result[cls.model.classes[j]] = cls_dets.cpu().numpy().tolist()
+                    result[cls.classes[j]] = cls_dets.cpu().numpy().tolist()
             return {'pred': result,
                     'metrics': {'rpn_loss_cls': rpn_loss_cls,
                                 'rpn_loss_box': rpn_loss_box,
