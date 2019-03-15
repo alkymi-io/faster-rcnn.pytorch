@@ -156,20 +156,20 @@ def train(env, mGPUs):
                 # accumulating the total losses. The total losses are used
                 # only for logging purposes.
                 num_examples_train += current_batch_size
-                train_loss_tot += batch_train_loss.item() * current_batch_size
-                train_rpn_cls_tot += batch_rpn_loss_cls.item() * current_batch_size
-                train_rpn_box_tot += batch_rpn_loss_box.item() * current_batch_size
-                train_rcnn_cls_tot += batch_RCNN_loss_cls.item() * current_batch_size
-                train_rcnn_box_tot += batch_RCNN_loss_bbox.item() * current_batch_size
+                train_loss_tot += batch_train_loss.item() * float(current_batch_size)
+                train_rpn_cls_tot += batch_rpn_loss_cls.item() * float(current_batch_size)
+                train_rpn_box_tot += batch_rpn_loss_box.item() * float(current_batch_size)
+                train_rcnn_cls_tot += batch_RCNN_loss_cls.item() * float(current_batch_size)
+                train_rcnn_box_tot += batch_RCNN_loss_bbox.item() * float(current_batch_size)
 
             train_end_time = time.time()
 
             epoch_log_train = {'epoch': epoch,
-                               'loss': train_loss_tot/num_examples_train,
-                               'rpn_cls': train_rpn_cls_tot/num_examples_train,
-                               'rpn_box': train_rpn_box_tot/num_examples_train,
-                               'rcnn_cls': train_rcnn_cls_tot/num_examples_train,
-                               'rcnn_box': train_rcnn_box_tot/num_examples_train}
+                               'loss': train_loss_tot/float(num_examples_train),
+                               'rpn_cls': train_rpn_cls_tot/float(num_examples_train),
+                               'rpn_box': train_rpn_box_tot/float(num_examples_train),
+                               'rcnn_cls': train_rcnn_cls_tot/float(num_examples_train),
+                               'rcnn_box': train_rcnn_box_tot/float(num_examples_train)}
             with open(train_log_path, 'a') as f:
                 f.write(','.join([str(v) for v in epoch_log_train.values()]) + '\n')
 
@@ -215,20 +215,20 @@ def train(env, mGPUs):
                                      batch_RCNN_loss_cls + batch_RCNN_loss_bbox
 
                     num_examples_val += current_batch_size
-                    val_loss_tot += batch_val_loss.item() * current_batch_size
-                    val_rpn_cls_tot += batch_rpn_loss_cls.item() * current_batch_size
-                    val_rpn_box_tot += batch_rpn_loss_box.item() * current_batch_size
-                    val_rcnn_cls_tot += batch_RCNN_loss_cls.item() * current_batch_size
-                    val_rcnn_box_tot += batch_RCNN_loss_bbox.item() * current_batch_size
+                    val_loss_tot += batch_val_loss.item() * float(current_batch_size)
+                    val_rpn_cls_tot += batch_rpn_loss_cls.item() * float(current_batch_size)
+                    val_rpn_box_tot += batch_rpn_loss_box.item() * float(current_batch_size)
+                    val_rcnn_cls_tot += batch_RCNN_loss_cls.item() * float(current_batch_size)
+                    val_rcnn_box_tot += batch_RCNN_loss_bbox.item() * float(current_batch_size)
 
             val_end_time = time.time()
 
             epoch_log_val = {'epoch': epoch,
-                             'loss': val_loss_tot / num_examples_val,
-                             'rpn_cls': val_rpn_cls_tot / num_examples_val,
-                             'rpn_box': val_rpn_box_tot / num_examples_val,
-                             'rcnn_cls': val_rcnn_cls_tot / num_examples_val,
-                             'rcnn_box': val_rcnn_box_tot / num_examples_val}
+                             'loss': val_loss_tot / float(num_examples_val),
+                             'rpn_cls': val_rpn_cls_tot / float(num_examples_val),
+                             'rpn_box': val_rpn_box_tot / float(num_examples_val),
+                             'rcnn_cls': val_rcnn_cls_tot / float(num_examples_val),
+                             'rcnn_box': val_rcnn_box_tot / float(num_examples_val)}
 
             with open(val_log_path, 'a') as f:
                 f.write(','.join([str(v) for v in epoch_log_val.values()]) + '\n')
