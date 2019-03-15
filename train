@@ -52,7 +52,7 @@ def train(env, mGPUs):
         lr = float(hyperparameters['lr'])
         imdb_name = hyperparameters['imdb_name']  # e.g. 'fakepages'
         num_workers = int(hyperparameters['num_workers'])
-        lr_patience = int(hyperparameters['lr_decay_step'])
+        lr_patience = int(hyperparameters['lr_patience'])
         lr_decay_gamma = float(hyperparameters['lr_decay_gamma'])  # 0.1
         early_stopping_patience = float(hyperparameters['patience'])  # 4
 
@@ -203,7 +203,7 @@ def train(env, mGPUs):
                                      batch_RCNN_loss_cls + batch_RCNN_loss_bbox
 
                     num_examples_val += current_batch_size
-                    val_loss_tot += batch_val_loss * current_batch_size
+                    val_loss_tot += batch_val_loss.item() * current_batch_size
                     val_rpn_cls_tot += rpn_loss_cls.item() * current_batch_size
                     val_rpn_box_tot += rpn_loss_box.item() * current_batch_size
                     val_rcnn_cls_tot += RCNN_loss_cls.item() * current_batch_size
