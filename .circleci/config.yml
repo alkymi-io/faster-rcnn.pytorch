@@ -1,0 +1,48 @@
+version: 2
+
+jobs:
+  build:
+    working_directory: ~/repo
+    docker:
+      - image: circleci/python:3.7
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Setup common environment variables
+          command: |
+            echo 'if [ -z "$CIRCLE_TAG" ]; then export CIRCLE_TAG=$(echo $CIRCLE_BUILD_NUM | cut -c1-7); fi' >> $BASH_ENV
+            echo 'export FULL_IMAGE_NAME="638608113287.dkr.ecr.us-east-1.amazonaws.com/faster-rcnn:${CIRCLE_TAG}"' >> $BASH_ENV
+            echo 'export FULL_IMAGE_NAME_LATEST="638608113287.dkr.ecr.us-east-1.amazonaws.com/faster-rcnn:latest"' >> $BASH_ENV
+            echo 'export FULL_IMAGE_NAME_GPU="638608113287.dkr.ecr.us-east-1.amazonaws.com/faster-rcnn:gpu"' >> $BASH_ENV
+            source $BASH_ENV
+      - run: sudo pip install awscli
+      - run:
+          name: Build image
+          command: |
+            docker build -t build .
+            docker tag build $FULL_IMAGE_NAME
+            docker tag build $FULL_IMAGE_NAME_LATEST
+            docker tag build $FULL_IMAGE_NAME_GPU
+      - run:
+          name: Push image to ECR
+          command: |
+            eval $(aws ecr get-login --region us-east-1 --no-include-email)
+            docker push $FULL_IMAGE_NAME
+            docker push $FULL_IMAGE_NAME_LATEST
+            docker push $FULL_IMAGE_NAME_GPU
+            echo "Pushed $FULL_IMAGE_NAME"
+            echo "Pushed $FULL_IMAGE_NAME_LATEST"
+            echo "Pushed $FULL_IMAGE_NAME_GPU"
+
+workflows:
+  version: 2
+  push-image:
+    jobs:
+      - build:
+          context: aws
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: master
