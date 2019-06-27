@@ -12,6 +12,7 @@ COPY ./hyperparameters.json /opt/ml/input/config/hyperparameters.json
 
 RUN pip install -r /opt/program/requirements.txt
 WORKDIR /opt/program/lib
+RUN python setup.py build develop
 
 ENV PYTHONUNBUFFERED=TRUE
 ENV PYTHONDONTWRITEBYTECODE=TRUE
