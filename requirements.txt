@@ -1,6 +1,7 @@
 cython
 cffi
 opencv-python
+Pillow
 scipy
 msgpack
 easydict
@@ -10,3 +11,4 @@ tensorboardX
 gunicorn
 gevent
 flask
+imageio
