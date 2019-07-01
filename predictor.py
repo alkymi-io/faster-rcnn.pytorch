@@ -19,8 +19,7 @@ from lib.model.faster_rcnn.resnet import resnet
 from lib.model.rpn.bbox_transform import bbox_transform_inv, clip_boxes
 from lib.model.utils.blob import im_list_to_blob
 from lib.model.utils.config import cfg
-from lib.model.nms.nms_wrapper import nms
-
+from model.roi_layers import nms
 
 # The flask app for serving predictions
 app = Flask(__name__)
