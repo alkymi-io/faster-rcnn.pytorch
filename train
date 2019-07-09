@@ -175,7 +175,7 @@ def train(env, mGPUs):
 
             print("[epoch %2d] train loss: %.4f; lr: %.2e;" % (epoch, epoch_log_train['loss'], lr))
             print("\t\t\ttrain time: %f;" % (train_end_time - train_start_time))
-            print("\t\t\ttrain rpn_cls: %.4f; train rpn_box: %.4f; train rcnn_cls: %.4f; train rcnn_box %.4f;"
+            print("\t\t\ttrain rpn_cls: %.4f; train rpn_box: %.4f; train rcnn_cls: %.4f; train rcnn_box: %.4f;"
                   % (epoch_log_train['rpn_cls'], epoch_log_train['rpn_box'], epoch_log_train['rcnn_cls'], epoch_log_train['rcnn_box']))
 
             train_log.append(epoch_log_train)
@@ -235,7 +235,7 @@ def train(env, mGPUs):
 
             print("[epoch %2d] val loss: %.4f; lr: %.2e;" % (epoch, epoch_log_val['loss'], lr))
             print("\t\t\tval time: %f;" % (val_end_time - val_start_time))
-            print("\t\t\tval rpn_cls: %.4f; val rpn_box: %.4f; val rcnn_cls: %.4f; val rcnn_box %.4f;"
+            print("\t\t\tval rpn_cls: %.4f; val rpn_box: %.4f; val rcnn_cls: %.4f; val rcnn_box: %.4f;"
                   % (epoch_log_val['rpn_cls'], epoch_log_val['rpn_box'], epoch_log_val['rcnn_cls'],  epoch_log_val['rcnn_box']))
 
             val_log.append(epoch_log_val)
