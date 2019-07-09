@@ -7,10 +7,12 @@ RUN apt-get install -y python-qt4 \
     nginx \
     ca-certificates
 
-COPY ./ /opt/program/
-COPY ./hyperparameters.json /opt/ml/input/config/hyperparameters.json
-
+COPY ./requirements.txt /opt/program/requirements.txt
 RUN pip install -r /opt/program/requirements.txt
+
+COPY ./hyperparameters.json /opt/ml/input/config/hyperparameters.json
+COPY ./ /opt/program/
+
 WORKDIR /opt/program/lib
 RUN python setup.py build develop
 
