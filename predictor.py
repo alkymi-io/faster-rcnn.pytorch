@@ -42,8 +42,13 @@ class ScoringService(object):
             classes = checkpoint['classes']
             model = resnet(classes, 'resnet101')
             model.create_architecture()
-            model = torch.nn.DataParallel(model)
-            model.load_state_dict(checkpoint['model'])
+
+            # If the model was trained with DataParallel we need to remove the
+            # "module." prefix from the parameter names.
+            checkpoint = {key[7:]: value
+                          for key, value in checkpoint['model'].items()}
+            
+            model.load_state_dict(checkpoint)
             model.classes = classes
             model.cuda()
             model.eval()
@@ -109,12 +114,15 @@ class ScoringService(object):
                     cls_scores = scores[:, j][inds]
                     _, order = torch.sort(cls_scores, 0, True)
                     cls_boxes = pred_boxes[inds][:, j * 4:(j + 1) * 4]
-
                     cls_dets = torch.cat((cls_boxes, cls_scores.unsqueeze(1)), 1)
                     cls_dets = cls_dets[order]
-                    keep = nms(cls_dets, cfg.TEST.NMS, force_cpu=not cfg.USE_GPU_NMS)
+
+                    # Set IOU thresh for the predictor here
+                    keep = nms(cls_boxes[order, :], cls_scores[order], 0.3)
+
                     cls_dets = cls_dets[keep.view(-1).long()]
                     result[cls.model.classes[j]] = cls_dets.cpu().numpy().tolist()
+
             return {'pred': result,
                     'metrics': {'rpn_loss_cls': rpn_loss_cls,
                                 'rpn_loss_box': rpn_loss_box,
