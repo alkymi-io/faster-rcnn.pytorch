@@ -189,3 +189,6 @@ def _get_image_blob(im):
     # Create a blob to hold the input images
     blob = im_list_to_blob(processed_ims)
     return blob, np.array(im_scale_factors)
+
+if __name__ == '__main__':
+    app.run()
