@@ -80,7 +80,8 @@ class ScoringService(object):
 
             gt_boxes = Variable(torch.zeros(1, 1, 5).cuda())
             num_boxes = Variable(torch.zeros(1).cuda())
-            rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_box, RCNN_loss_cls, RCNN_loss_bbox, rois_label = cls.model(im_data, im_info, gt_boxes, num_boxes)
+            (rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_box,
+             RCNN_loss_cls, RCNN_loss_bbox, rois_label) = cls.model(im_data, im_info, gt_boxes, num_boxes)
 
             scores = cls_prob.data
             boxes = rois.data[:, :, 1:5]
@@ -190,5 +191,6 @@ def _get_image_blob(im):
     blob = im_list_to_blob(processed_ims)
     return blob, np.array(im_scale_factors)
 
+
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0')
