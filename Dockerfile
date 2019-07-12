@@ -11,9 +11,8 @@ COPY ./requirements.txt /opt/program/requirements.txt
 RUN pip install -r /opt/program/requirements.txt
 
 COPY ./hyperparameters.json /opt/ml/input/config/hyperparameters.json
-COPY ./ /opt/program/
 
-COPY ./faster-rcnn.pt /opt/ml/model/faster-rcnn.pt
+COPY ./ /opt/program/
 
 WORKDIR /opt/program/lib
 RUN python setup.py build develop
