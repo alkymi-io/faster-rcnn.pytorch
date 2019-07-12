@@ -133,6 +133,23 @@ def clip_boxes(boxes, im_shape, batch_size):
     return boxes
 
 
+def keep_detections(detections, im_shape):
+    """
+    Return the indices of detections that are completely inside the bounds of
+    the image.
+    :param detections: Tensor
+    :param im_shape: Tensor
+    :return: keep: Tensor
+    """
+    batch_size, _ = detections.shape
+    c1 = detections[:, 0] >= 0
+    c2 = detections[:, 1] >= 0
+    c3 = detections[:, 2] < im_shape[0, 1]
+    c4 = detections[:, 3] < im_shape[0, 0]
+    keep = torch.nonzero(c1 * c2 * c3 * c4).view(-1)
+    return keep
+
+
 def bbox_overlaps(anchors, gt_boxes):
     """
     anchors: (N, 4) ndarray of float
