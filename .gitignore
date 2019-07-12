@@ -200,3 +200,4 @@ caffe2.egg-info
 
 ./save/
 ./save/**/*
+*.pt
