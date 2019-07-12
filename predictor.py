@@ -11,15 +11,14 @@ except ImportError:
     from io import StringIO
 
 import numpy as np
-
 import torch
-from torch.autograd import Variable
 
 from lib.model.faster_rcnn.resnet import resnet
-from lib.model.rpn.bbox_transform import bbox_transform_inv, clip_boxes
+from lib.model.rpn.bbox_transform import bbox_transform_inv, clip_boxes, keep_detections
 from lib.model.utils.blob import im_list_to_blob
 from lib.model.utils.config import cfg
 from model.roi_layers import nms
+from overlap_suppression import overlap_suppression
 
 # The flask app for serving predictions
 app = Flask(__name__)
@@ -36,8 +35,8 @@ class ScoringService(object):
         """Get the model object for this instance,
         loading it if it's not already loaded."""
         if cls.model is None:
-            load_name = '/opt/ml/model/faster-rcnn.pt'
-            # load_name = 'faster-rcnn.pt'
+            # load_name = '/opt/ml/model/faster-rcnn.pt'
+            load_name = 'faster-rcnn.pt'
             checkpoint = torch.load(load_name, map_location=lambda storage, loc: storage)
             classes = checkpoint['classes']
             model = resnet(classes, 'resnet101')
@@ -69,19 +68,38 @@ class ScoringService(object):
         thresh = 0.05
 
         with torch.no_grad():
-
-            blobs, im_scales = _get_image_blob(im_in)
+            im_blob, im_scales = _get_image_blob(im_in)
             assert len(im_scales) == 1, "Only single-image batch implemented"
-            im_blob = blobs
-            im_data = Variable(torch.from_numpy(im_blob).permute(0, 3, 1, 2).cuda())
 
+            # Convert to BRG
+            im_data = torch.from_numpy(im_blob).permute(0, 3, 1, 2).cuda()
+
+            # im_info stores (height, width, scale)
             im_info_np = np.array([[im_blob.shape[1], im_blob.shape[2], im_scales[0]]], dtype=np.float32)
-            im_info = Variable(torch.from_numpy(im_info_np).cuda())
+            im_info = torch.from_numpy(im_info_np).cuda()
 
-            gt_boxes = Variable(torch.zeros(1, 1, 5).cuda())
-            num_boxes = Variable(torch.zeros(1).cuda())
-            (rois, cls_prob, bbox_pred, rpn_loss_cls, rpn_loss_box,
-             RCNN_loss_cls, RCNN_loss_bbox, rois_label) = cls.model(im_data, im_info, gt_boxes, num_boxes)
+            # When predicting on new images the ground truth boxes are unknown.
+            # We can set them to 0.
+            gt_boxes = torch.zeros(1, 1, 5).cuda()
+            num_boxes = torch.zeros(1).cuda()
+
+            # Call the model
+
+            # rois has shape (batch_size, RPN_POST_NMS_TOP_N, 5)
+            # The last dimension holds (example_idx, x, y, x2, y2).
+            # example idx is always 1 at inference time since batch_size==1
+
+            # cls_prob has shape
+            # (batch_size, RPN_POST_NMS_TOP_N, num_classes + 1)
+            # The first probability is for the background class
+
+            # bbox_pred has shape
+            # (batch_size, RPN_POST_NMS_TOP_N, 4 * num_classes)
+            # The last dim holds the bounding box deltas
+            # (dx_0, dy_0, w_0, h_0,
+            #   ddx_1, dy_1, w_1, h_1...)
+            # Where the subscript is the class index.
+            rois, cls_prob, bbox_pred, _, _, _, _, _ = cls.model(im_data, im_info, gt_boxes, num_boxes)
 
             scores = cls_prob.data
             boxes = rois.data[:, :, 1:5]
@@ -97,20 +115,61 @@ class ScoringService(object):
                     box_deltas = box_deltas.view(1, -1, 4 * len(cls.model.classes))
 
                 pred_boxes = bbox_transform_inv(boxes, box_deltas, 1)
+
+                # Clip boxes so that they fit inside the image bounds
                 pred_boxes = clip_boxes(pred_boxes, im_info.data, 1)
+
             else:
                 # Simply repeat the boxes, once for each class
                 pred_boxes = np.tile(boxes, (1, scores.shape[1]))
 
+            # Scale the predicted boxes so they line up with the input image
             pred_boxes /= im_scales[0]
 
             scores = scores.squeeze()
-            pred_boxes = pred_boxes.squeeze()
 
+            pred_boxes = pred_boxes.squeeze()
             result = dict()
+            iou_thresh = 0.3
+            all_detections = []
+
+            max_class_scores, max_class_idxs = torch.max(scores, dim=1)
+            for j in range(len(cls.model.classes)):
+                class_idxs = torch.nonzero(max_class_idxs == j).view(-1)
+                class_scores = max_class_scores[class_idxs]
+                if class_idxs.numel() > 0:
+                    _, order = torch.sort(class_scores, 0, True)
+                    class_boxes = pred_boxes[class_idxs][:, j * 4:(j + 1) * 4]
+                    class_scores = max_class_scores[class_idxs]
+
+                    # Concat box coords with ALL class probabilities
+                    class_detections = torch.cat((class_boxes, scores[class_idxs]), 1)[order]
+
+                    # Perform non-max suppression for class j
+                    # keep holds a list of indices of boxes that survived nms
+                    keep = nms(class_boxes[order, :], class_scores[order], iou_thresh)
+                    class_detections = class_detections[keep.view(-1).long()]
+
+                    # Only keep predicted boxes if the are entirely inside the
+                    # page bounds.
+                    # Might want to relax this.
+                    keep2 = keep_detections(class_detections, im_info.data)
+                    class_detections = class_detections[keep2]
+                    all_detections.append(class_detections)
+
+            all_detections = torch.cat(all_detections, 0)
+
+            # Iterate through all of the detected boxes in order of decreasing
+            # confidence. Kill any boxes that overlap with more confident boxes.
+            keep3 = overlap_suppression(all_detections.cpu())
+            all_detections = all_detections[keep3.long()]
+            result2 = all_detections.cpu().numpy().tolist()
+
             for j in range(1, len(cls.model.classes)):
+                # Indices where class j probability exceeds the detection threshold
                 inds = torch.nonzero(scores[:, j] > thresh).view(-1)
-                # if there is det
+
+                # if there is detection for class j
                 if inds.numel() > 0:
                     cls_scores = scores[:, j][inds]
                     _, order = torch.sort(cls_scores, 0, True)
@@ -118,18 +177,14 @@ class ScoringService(object):
                     cls_dets = torch.cat((cls_boxes, cls_scores.unsqueeze(1)), 1)
                     cls_dets = cls_dets[order]
 
-                    # Set IOU thresh for the predictor here
-                    keep = nms(cls_boxes[order, :], cls_scores[order], 0.3)
-
+                    # Perform non-max suppression for class j
+                    # keep holds a list of indices of boxes that survived nms
+                    keep = nms(cls_boxes[order, :], cls_scores[order], iou_thresh)
                     cls_dets = cls_dets[keep.view(-1).long()]
+
                     result[cls.model.classes[j]] = cls_dets.cpu().numpy().tolist()
 
-            return {'pred': result,
-                    'metrics': {'rpn_loss_cls': rpn_loss_cls,
-                                'rpn_loss_box': rpn_loss_box,
-                                'RCNN_loss_cls': RCNN_loss_cls,
-                                'RCNN_loss_bbox': RCNN_loss_bbox,
-                                'rois_label': rois_label}}
+            return {'pred': result, 'pred2': result2}
 
 
 @app.route('/ping', methods=['GET'])
@@ -165,6 +220,8 @@ def _get_image_blob(im):
     blob (ndarray): a data blob holding an image pyramid
     im_scale_factors (list): list of image scales (relative to im) used
       in the image pyramid
+      At test time there can only be one scale (i.e. len(cfg.TEST.SCALES) == 1)
+      so the pyramid has height of 1.
     """
     im_orig = im.astype(np.float32, copy=True)[:, :, :3]
     im_orig -= cfg.PIXEL_MEANS
