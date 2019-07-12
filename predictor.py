@@ -161,9 +161,30 @@ class ScoringService(object):
 
             # Iterate through all of the detected boxes in order of decreasing
             # confidence. Kill any boxes that overlap with more confident boxes.
-            keep3 = overlap_suppression(all_detections.cpu())
+            ovr_sup_thresh = 0.2
+            keep3 = overlap_suppression(all_detections.cpu(), ovr_sup_thresh)
             all_detections = all_detections[keep3.long()]
             result2 = all_detections.cpu().numpy().tolist()
+
+            raw_detections = []
+            for j in range(len(cls.model.classes)):
+                class_idxs = torch.nonzero(max_class_idxs == j).view(-1)
+                class_scores = max_class_scores[class_idxs]
+                if class_idxs.numel() > 0:
+                    _, order = torch.sort(class_scores, 0, True)
+                    class_boxes = pred_boxes[class_idxs][:, j * 4:(j + 1) * 4]
+                    class_scores = max_class_scores[class_idxs]
+
+                    # Concat box coords with ALL class probabilities
+                    class_detections = torch.cat((class_boxes, scores[class_idxs]), 1)[order]
+
+                    # Perform non-max suppression for class j
+                    # keep holds a list of indices of boxes that survived nms
+                    keep = nms(class_boxes[order, :], class_scores[order], iou_thresh)
+                    class_detections = class_detections[keep.view(-1).long()]
+                    raw_detections.append(class_detections)
+
+            raw = torch.cat(raw_detections, 0).cpu().numpy().tolist()
 
             for j in range(1, len(cls.model.classes)):
                 # Indices where class j probability exceeds the detection threshold
@@ -184,7 +205,7 @@ class ScoringService(object):
 
                     result[cls.model.classes[j]] = cls_dets.cpu().numpy().tolist()
 
-            return {'pred': result, 'pred2': result2}
+            return {'pred': result, 'pred2': result2, 'raw': raw}
 
 
 @app.route('/ping', methods=['GET'])
