@@ -35,8 +35,8 @@ class ScoringService(object):
         """Get the model object for this instance,
         loading it if it's not already loaded."""
         if cls.model is None:
-            # load_name = '/opt/ml/model/faster-rcnn.pt'
-            load_name = 'faster-rcnn.pt'
+            load_name = '/opt/ml/model/faster-rcnn.pt'
+            # load_name = 'faster-rcnn.pt'
             checkpoint = torch.load(load_name, map_location=lambda storage, loc: storage)
             classes = checkpoint['classes']
             model = resnet(classes, 'resnet101')
@@ -65,7 +65,6 @@ class ScoringService(object):
 
         if cls.model is None:
             cls.model = cls.get_model()
-        thresh = 0.05
 
         with torch.no_grad():
             im_blob, im_scales = _get_image_blob(im_in)
@@ -93,106 +92,123 @@ class ScoringService(object):
             # (batch_size, RPN_POST_NMS_TOP_N, num_classes + 1)
             # The first probability is for the background class
 
-            # bbox_pred has shape
+            # bbox_delta has shape
             # (batch_size, RPN_POST_NMS_TOP_N, 4 * num_classes)
             # The last dim holds the bounding box deltas
-            # (dx_0, dy_0, w_0, h_0,
-            #   ddx_1, dy_1, w_1, h_1...)
+            # (dx_0, dy_0, dw_0, dh_0,
+            #  dx_1, dy_1, dw_1, dh_1...)
             # Where the subscript is the class index.
-            rois, cls_prob, bbox_pred, _, _, _, _, _ = cls.model(im_data, im_info, gt_boxes, num_boxes)
-
-            scores = cls_prob.data
-            boxes = rois.data[:, :, 1:5]
+            rois, cls_prob, bbox_delta, _, _, _, _, _ = cls.model(im_data, im_info, gt_boxes, num_boxes)
 
             if cfg.TEST.BBOX_REG:
                 # Apply bounding-box regression deltas
-                box_deltas = bbox_pred.data
+                # box_deltas = bbox_delta.data
+
                 if cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
                     # Optionally normalize targets by a precomputed mean and stdev
-                    box_deltas = box_deltas.view(-1, 4) * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
-                                 + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
+                    bbox_delta = bbox_delta.view(-1, 4) * torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_STDS).cuda() \
+                                + torch.FloatTensor(cfg.TRAIN.BBOX_NORMALIZE_MEANS).cuda()
 
-                    box_deltas = box_deltas.view(1, -1, 4 * len(cls.model.classes))
+                    bbox_delta = bbox_delta.view(1, -1, 4 * len(cls.model.classes))
 
-                pred_boxes = bbox_transform_inv(boxes, box_deltas, 1)
-
-                # Clip boxes so that they fit inside the image bounds
-                pred_boxes = clip_boxes(pred_boxes, im_info.data, 1)
+                # Apply the deltas to the ROIS to get the predicted boxes.
+                pred_boxes = bbox_transform_inv(rois.data[:, :, 1:5], bbox_delta, 1)
 
             else:
                 # Simply repeat the boxes, once for each class
-                pred_boxes = np.tile(boxes, (1, scores.shape[1]))
+                pred_boxes = np.tile(rois.data[:, :, 1:5], (1, cls_prob.shape[1]))
 
+            # pred boxes has shape
+            # (max_num_detections=300, num_coordinates=4 * num_classes)
+            # The coords in the last dimension are in the format
+            # (x_0, y_0, x2_0, y2_0, x_1, y_1, x2_1, y2_1,...)
             # Scale the predicted boxes so they line up with the input image
-            pred_boxes /= im_scales[0]
+            pred_boxes = (pred_boxes/im_scales[0]).squeeze(0)
+            cls_prob = cls_prob.squeeze(0)
 
-            scores = scores.squeeze()
-
-            pred_boxes = pred_boxes.squeeze()
-            result = dict()
             iou_thresh = 0.3
             all_detections = []
 
-            max_class_scores, max_class_idxs = torch.max(scores, dim=1)
-            for j in range(len(cls.model.classes)):
+            max_class_probs, max_class_idxs = torch.max(cls_prob, dim=1)
+
+            # Assume that the 0th class is __background__
+            for j in range(1, len(cls.model.classes)):
+                # Get the indices of boxes where the maximum probability is in the jth column
                 class_idxs = torch.nonzero(max_class_idxs == j).view(-1)
-                class_scores = max_class_scores[class_idxs]
+
+                # Get the probabilities of the boxes that were predicted to be class j.
+                class_probs = max_class_probs[class_idxs]
+
                 if class_idxs.numel() > 0:
-                    _, order = torch.sort(class_scores, 0, True)
-                    class_boxes = pred_boxes[class_idxs][:, j * 4:(j + 1) * 4]
-                    class_scores = max_class_scores[class_idxs]
+                    # Sort the class j boxes in order of decreasing probability
+                    _, order = torch.sort(class_probs, 0, True)
+
+                    class_probs = class_probs[order]
+
+                    class_boxes = pred_boxes[class_idxs, j * 4:(j + 1) * 4][order]
 
                     # Concat box coords with ALL class probabilities
-                    class_detections = torch.cat((class_boxes, scores[class_idxs]), 1)[order]
+                    # class_detections has shape
+                    # (class_count, num_coords + num_classes = 8)
+                    class_detections = torch.cat((class_boxes, cls_prob[class_idxs, :]), 1)
 
                     # Perform non-max suppression for class j
                     # keep holds a list of indices of boxes that survived nms
-                    keep = nms(class_boxes[order, :], class_scores[order], iou_thresh)
-                    class_detections = class_detections[keep.view(-1).long()]
+                    keep = nms(class_boxes, class_probs, iou_thresh).view(-1).long()
+                    class_detections = class_detections[keep, :]
 
-                    # Only keep predicted boxes if the are entirely inside the
+                    # Only keep predicted boxes if they are entirely inside the
                     # page bounds.
-                    # Might want to relax this.
-                    keep2 = keep_detections(class_detections, im_info.data)
-                    class_detections = class_detections[keep2]
+                    keep2 = keep_detections(class_detections, im_info[0, 1]/im_scales[0], im_info[0, 0]/im_scales[0])
+                    class_detections = class_detections[keep2, :]
+
                     all_detections.append(class_detections)
 
-            all_detections = torch.cat(all_detections, 0)
+            if all_detections:
+                all_detections = torch.cat(all_detections, 0)
 
-            # Iterate through all of the detected boxes in order of decreasing
-            # confidence. Kill any boxes that overlap with more confident boxes.
-            ovr_sup_thresh = 0.2
-            keep3 = overlap_suppression(all_detections.cpu(), ovr_sup_thresh)
-            all_detections = all_detections[keep3.long()]
-            result2 = all_detections.cpu().numpy().tolist()
+                # Iterate through all of the detected boxes in order of
+                # decreasing confidence. Kill any boxes that overlap with more
+                # confident boxes.
+                ovr_sup_thresh = 0.2
+                keep3 = overlap_suppression(all_detections.cpu(), ovr_sup_thresh)
+                all_detections = all_detections[keep3.long()]
+                result2 = all_detections.cpu().numpy().tolist()
+            else:
+                result2 = []
 
             raw_detections = []
             for j in range(len(cls.model.classes)):
                 class_idxs = torch.nonzero(max_class_idxs == j).view(-1)
-                class_scores = max_class_scores[class_idxs]
+                class_probs = max_class_probs[class_idxs]
                 if class_idxs.numel() > 0:
-                    _, order = torch.sort(class_scores, 0, True)
+                    _, order = torch.sort(class_probs, 0, True)
                     class_boxes = pred_boxes[class_idxs][:, j * 4:(j + 1) * 4]
-                    class_scores = max_class_scores[class_idxs]
+                    class_probs = max_class_probs[class_idxs]
 
-                    # Concat box coords with ALL class probabilities
-                    class_detections = torch.cat((class_boxes, scores[class_idxs]), 1)[order]
+                    # Concat most probable box coords with ALL class probabilities
+                    class_detections = torch.cat((class_boxes, cls_prob[class_idxs]), 1)[order]
 
                     # Perform non-max suppression for class j
                     # keep holds a list of indices of boxes that survived nms
-                    keep = nms(class_boxes[order, :], class_scores[order], iou_thresh)
+                    keep = nms(class_boxes[order, :], class_probs[order], iou_thresh)
                     class_detections = class_detections[keep.view(-1).long()]
                     raw_detections.append(class_detections)
-
             raw = torch.cat(raw_detections, 0).cpu().numpy().tolist()
 
+            #################################################################
+            # THIS BLOCK PRODUCES THE CONTENTS OF THE DEPRECATED 'pred' field
+            #################################################################
+            result = dict()
+            thresh = 0.05
             for j in range(1, len(cls.model.classes)):
-                # Indices where class j probability exceeds the detection threshold
-                inds = torch.nonzero(scores[:, j] > thresh).view(-1)
+                # Indices where class j probability exceeds the detection
+                # threshold
+                inds = torch.nonzero(cls_prob[:, j] > thresh).view(-1)
 
                 # if there is detection for class j
                 if inds.numel() > 0:
-                    cls_scores = scores[:, j][inds]
+                    cls_scores = cls_prob[:, j][inds]
                     _, order = torch.sort(cls_scores, 0, True)
                     cls_boxes = pred_boxes[inds][:, j * 4:(j + 1) * 4]
                     cls_dets = torch.cat((cls_boxes, cls_scores.unsqueeze(1)), 1)
@@ -204,8 +220,9 @@ class ScoringService(object):
                     cls_dets = cls_dets[keep.view(-1).long()]
 
                     result[cls.model.classes[j]] = cls_dets.cpu().numpy().tolist()
+            #################################################################
 
-            return {'pred': result, 'pred2': result2, 'raw': raw}
+            return {'pred': result, 'predicted_boxes': result2, 'raw_boxes': raw, 'box_labels': list(cls.model.classes)}
 
 
 @app.route('/ping', methods=['GET'])
