@@ -14,7 +14,7 @@ import numpy as np
 import torch
 
 from lib.model.faster_rcnn.resnet import resnet
-from lib.model.rpn.bbox_transform import bbox_transform_inv, clip_boxes, keep_detections
+from lib.model.rpn.bbox_transform import bbox_transform_inv, keep_detections
 from lib.model.utils.blob import im_list_to_blob
 from lib.model.utils.config import cfg
 from model.roi_layers import nms
@@ -36,18 +36,24 @@ class ScoringService(object):
         loading it if it's not already loaded."""
         if cls.model is None:
             load_name = '/opt/ml/model/faster-rcnn.pt'
-            # load_name = 'faster-rcnn.pt'
             checkpoint = torch.load(load_name, map_location=lambda storage, loc: storage)
-            classes = checkpoint['classes']
+            print('checkpoint keys:', checkpoint.keys())
+            old_classes = ['__background__', 'text',
+                           'structured_data', 'graphical_chart', 'title']
+            classes = checkpoint.get('classes', old_classes)
             model = resnet(classes, 'resnet101')
             model.create_architecture()
 
             # If the model was trained with DataParallel we need to remove the
             # "module." prefix from the parameter names.
-            checkpoint = {key[7:]: value
-                          for key, value in checkpoint['model'].items()}
+            state_dict = {}
+            for key, value in checkpoint['model'].items():
+                if key.startswith('module.'):
+                    state_dict[key[7:]] = value
+                else:
+                    state_dict[key] = value
             
-            model.load_state_dict(checkpoint)
+            model.load_state_dict(state_dict)
             model.classes = classes
             model.cuda()
             model.eval()
