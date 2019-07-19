@@ -22,7 +22,7 @@ import uuid
 # COCO API
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
-from pycocotools import mask as COCOmask
+# from pycocotools import mask as COCOmask
 
 class coco(imdb):
   def __init__(self, image_set, year):

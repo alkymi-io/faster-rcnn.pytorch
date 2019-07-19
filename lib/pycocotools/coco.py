@@ -57,7 +57,7 @@ import numpy as np
 import urllib
 import copy
 import itertools
-from . import mask
+# from . import mask
 import os
 try:
     unicode        # Python 2
