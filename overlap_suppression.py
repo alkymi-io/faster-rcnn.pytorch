@@ -41,16 +41,17 @@ def overlap_suppression(dets, thresh):
 
         # Calculate the fractional overlap relative to the smaller area
         ovr = inter / np.minimum(areas[order[0]], areas[order[1:]])
+        # ovr = inter / (areas[i] + areas[order[1:]] - inter)
 
         # Get the indices where the fractional overlap does not exceed the
         # threshold. Shift the indices to account for the most confident box.
         idxs = np.where(ovr < thresh)[0] + 1
 
-        # Filter the bounding boxes. This keeps only boxes that do not
+        # Filter the boxes. This keeps only boxes that do not
         # significantly overlap with the most confidant box. This process
         # always removes the most confidant box.
         order = order[idxs]
 
-    return torch.IntTensor(keep)
+    return torch.LongTensor(keep)
 
 
