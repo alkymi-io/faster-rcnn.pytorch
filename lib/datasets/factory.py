@@ -63,7 +63,7 @@ for split in ['train', 'val', 'val1', 'val2', 'test']:
 # Set up pdfpages
 for split in ['train', 'validation']:
     name = 'pdfpages_{}'.format(split)
-    # path = '/home/ubuntu/persist/data_gen/data/pageseg/20190226'
+    # path = './data/pageseg_test'
     path = f'/opt/ml/input/data/training'
 
     __sets[name] = (lambda split=split: PDFPages(split, path=path))
