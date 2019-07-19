@@ -79,13 +79,17 @@ class PDFPages(imdb):
         assert os.path.exists(image_path), 'Path does not exist: {}'.format(image_path)
         return image_path
 
+    # TODO: Rename this to load_filenames? I don't think I'm using indexes in
+    #  the way the orinal file was.
     def _load_image_set_index(self):
         """
         Load the indexes listed in this dataset's image set file.
 
         Modified to load the filenames instead
         """
-        full_filenames = [x for _, _, x in os.walk(os.path.join(self._path, self._split))][0]
+        path = os.path.join(self._path, self._split)
+        print('Loading files at:', path)
+        full_filenames = [x for _, _, x in os.walk(path)][0]
         image_index = [os.path.splitext(filename)[0] for filename in full_filenames]
         return image_index
 
