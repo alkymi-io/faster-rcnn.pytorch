@@ -17,8 +17,7 @@ from lib.model.faster_rcnn.resnet import resnet
 from lib.model.rpn.bbox_transform import bbox_transform_inv, keep_detections
 from lib.model.utils.blob import im_list_to_blob
 from lib.model.utils.config import cfg
-# from model.roi_layers import nms
-from lib.model.nms.nms_cpu import nms_cpu as nms
+from model.roi_layers import nms
 from overlap_suppression import overlap_suppression
 
 # The flask app for serving predictions
@@ -36,7 +35,8 @@ class ScoringService(object):
         """Get the model object for this instance,
         loading it if it's not already loaded."""
         if cls.model is None:
-            load_name = '/opt/ml/model/faster-rcnn.pt'
+            load_name = './faster-rcnn.pt'
+            # load_name = '/opt/ml/model/faster-rcnn.pt'
             checkpoint = torch.load(load_name,
                                     map_location=lambda storage, loc: storage)
             print('checkpoint keys:', checkpoint.keys())
@@ -216,7 +216,9 @@ class ScoringService(object):
 
                     # Perform non-max suppression for class j
                     # keep holds a list of indices of boxes that survived nms
-                    keep = nms(cls_dets.cpu(), old_nms_thresh)
+                    keep = nms(cls_boxes[order, :],
+                               cls_scores[order],
+                               old_nms_thresh)
                     cls_dets = cls_dets[keep.view(-1).long()]
 
                     result[cls.model.classes[j]] = cls_dets.cpu().numpy().tolist()
