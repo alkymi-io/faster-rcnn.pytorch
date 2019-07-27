@@ -72,7 +72,8 @@ def train(env, mGPUs):
         imdb_val, roidb_val, ratio_list_val, ratio_index_val = combined_roidb(imdb_name + '_validation', training=False)
         dataset_val = roibatchLoader(roidb_val, ratio_list_val,
                                      ratio_index_val,  batch_size,
-                                     imdb_val.num_classes)
+                                     imdb_val.num_classes,
+                                     training=False)
         dataloader_val = torch.utils.data.DataLoader(dataset_val,
                                                      batch_size=batch_size,
                                                      num_workers=num_workers,
@@ -134,6 +135,9 @@ def train(env, mGPUs):
             for batch_idx, (im_data, im_info, gt_boxes, num_boxes) in enumerate(dataloader_train):
 
                 ok_mask = gt_boxes.sum(dim=1).sum(dim=1) > 0
+                if ok_mask.sum() != batch_size:
+                    print(f'{ok_mask.sum()}/{batch_size} '
+                          f'images in training batch are ok.')
 
                 im_data = im_data.cuda()[ok_mask]
                 im_info = im_info.cuda()[ok_mask]
@@ -152,7 +156,7 @@ def train(env, mGPUs):
                 # for the entire mini-batch I  average the workers losses
                 # together. This is not entirely correct because workers will
                 # not always get the same number of examples.
-                # It's probably an "ok" assumption.
+                # It's probably an "ok" approximation.
                 batch_rpn_loss_cls = rpn_loss_cls.mean()
                 batch_rpn_loss_box = rpn_loss_box.mean()
                 batch_RCNN_loss_cls = RCNN_loss_cls.mean()
@@ -190,10 +194,18 @@ def train(env, mGPUs):
             with open(train_log_path, 'a') as f:
                 f.write(','.join([str(v) for v in epoch_log_train.values()]) + '\n')
 
-            print("[epoch %2d] train loss: %.4f; lr: %.2e;" % (epoch, epoch_log_train['loss'], lr))
+            print("[epoch %2d] train loss: %.4f; "
+                  "lr: %.2e;" % (epoch, epoch_log_train['loss'], lr))
             print("\t\t\ttrain time: %f;" % (train_end_time - train_start_time))
-            print("\t\t\ttrain rpn_cls: %.4f; train rpn_box: %.4f; train rcnn_cls: %.4f; train rcnn_box: %.4f;"
-                  % (epoch_log_train['rpn_cls'], epoch_log_train['rpn_box'], epoch_log_train['rcnn_cls'], epoch_log_train['rcnn_box']))
+            print("\t\t\t"
+                  "train rpn_cls: %.4f; "
+                  "train rpn_box: %.4f; "
+                  "train rcnn_cls: %.4f; "
+                  "train rcnn_box: %.4f;"
+                  % (epoch_log_train['rpn_cls'],
+                     epoch_log_train['rpn_box'],
+                     epoch_log_train['rcnn_cls'],
+                     epoch_log_train['rcnn_box']))
 
             train_log.append(epoch_log_train)
 
@@ -209,7 +221,8 @@ def train(env, mGPUs):
                 for im_data, im_info, gt_boxes, num_boxes in dataloader_val:
                     ok_mask = gt_boxes.sum(dim=1).sum(dim=1) > 0
                     if ok_mask.sum() != batch_size:
-                        print(f'{int(ok_mask.sum())}/{batch_size} examples ok')
+                        print(f'{int(ok_mask.sum())}/{batch_size} '
+                              f'images in validation batch are ok')
                     im_data = im_data.cuda()[ok_mask]
                     im_info = im_info.cuda()[ok_mask]
                     gt_boxes = gt_boxes.cuda()[ok_mask]
@@ -249,10 +262,17 @@ def train(env, mGPUs):
             with open(val_log_path, 'a') as f:
                 f.write(','.join([str(v) for v in epoch_log_val.values()]) + '\n')
 
-            print("[epoch %2d] val loss: %.4f; lr: %.2e;" % (epoch, epoch_log_val['loss'], lr))
+            print("[epoch %2d] val loss: %.4f; "
+                  "lr: %.2e;" % (epoch, epoch_log_val['loss'], lr))
             print("\t\t\tval time: %f;" % (val_end_time - val_start_time))
-            print("\t\t\tval rpn_cls: %.4f; val rpn_box: %.4f; val rcnn_cls: %.4f; val rcnn_box: %.4f;"
-                  % (epoch_log_val['rpn_cls'], epoch_log_val['rpn_box'], epoch_log_val['rcnn_cls'],  epoch_log_val['rcnn_box']))
+            print("\t\t\tval rpn_cls: %.4f; "
+                  "val rpn_box: %.4f; "
+                  "val rcnn_cls: %.4f; "
+                  "val rcnn_box: %.4f;"
+                  % (epoch_log_val['rpn_cls'],
+                     epoch_log_val['rpn_box'],
+                     epoch_log_val['rcnn_cls'],
+                     epoch_log_val['rcnn_box']))
 
             val_log.append(epoch_log_val)
 
