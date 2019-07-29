@@ -63,8 +63,8 @@ for split in ['train', 'val', 'val1', 'val2', 'test']:
 # Set up pdfpages
 for split in ['train', 'validation']:
     name = 'pdfpages_{}'.format(split)
-    # path = './data/pageseg_test'
-    path = f'/opt/ml/input/data/training'
+    # path = './data/equity-research-augmented'
+    path = '/opt/ml/input/data/training'
 
     __sets[name] = (lambda split=split: PDFPages(split, path=path))
 

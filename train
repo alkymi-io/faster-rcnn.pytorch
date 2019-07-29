@@ -121,7 +121,6 @@ def train(env, mGPUs):
         lr_adjust_count = 0
 
         fasterRCNN.train()
-
         for epoch in range(epochs):
 
             train_loss_tot = 0
@@ -132,7 +131,8 @@ def train(env, mGPUs):
             num_examples_train = 0
 
             train_start_time = time.time()
-            for batch_idx, (im_data, im_info, gt_boxes, num_boxes) in enumerate(dataloader_train):
+            print('Training...')
+            for im_data, im_info, gt_boxes, num_boxes in dataloader_train:
 
                 ok_mask = gt_boxes.sum(dim=1).sum(dim=1) > 0
                 if ok_mask.sum() != batch_size:
@@ -144,6 +144,9 @@ def train(env, mGPUs):
                 gt_boxes = gt_boxes.cuda()[ok_mask]
                 num_boxes = num_boxes.cuda()[ok_mask]
                 current_batch_size = ok_mask.sum()
+                if current_batch_size == 0:
+                    print('EMPTY TRAIN MINI-BATCH!!!')
+                    continue
 
                 (rois, cls_prob,
                  bbox_pred, rpn_loss_cls,
@@ -228,6 +231,10 @@ def train(env, mGPUs):
                     gt_boxes = gt_boxes.cuda()[ok_mask]
                     num_boxes = num_boxes.cuda()[ok_mask]
                     current_batch_size = ok_mask.sum()
+
+                    if current_batch_size == 0:
+                        print('EMPTY VAL MINI-BATCH!!!')
+                        continue
 
                     (rois, cls_prob,
                      bbox_pred, rpn_loss_cls,
