@@ -65,9 +65,11 @@ def train(env, mGPUs):
         dataloader_val = torch.utils.data.DataLoader(dataset_val, batch_size=batch_size, num_workers=num_workers, drop_last=True)
 
         classes = np.asarray(['__background__',
-                              'text',
-                              'structured_data',
-                              'graphical_chart'])
+                              'one_morningstar',
+                              'two_morningstar',
+                              'three_morningstar',
+                              'four_morningstar',
+                              'five_morningstar'])
 
         fasterRCNN = resnet(classes, 'resnet101', pretrained=True, class_agnostic=False)
         fasterRCNN.create_architecture()
