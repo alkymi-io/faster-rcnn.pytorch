@@ -1,11 +1,12 @@
 {
-  "batch_size": "2",
-  "epochs":"2",
+  "batch_size": "4",
+  "epochs":"200",
   "lr": "0.0001",
   "lr_decay_gamma": "0.1",
   "lr_patience": "2",
   "patience": "3",
   "imdb_name": "pdfpages",
   "num_workers": "0",
-  "USE_FLIPPED": "False"
+  "USE_FLIPPED": "False",
+  "lr_adjust_max": "2"
 }
