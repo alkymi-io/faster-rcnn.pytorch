@@ -46,7 +46,8 @@ class ScoringService(object):
             model = torch.nn.DataParallel(model)
             model.load_state_dict(checkpoint['model'])
             model.classes = classes
-            model.cuda()
+            if torch.cuda.is_available():
+                model.cuda()
             model.eval()
             cls.model = model
 
